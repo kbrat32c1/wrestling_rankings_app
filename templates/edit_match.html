@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Match{% endblock %}
+
+{% block content %}
+<h1>Edit Match</h1>
+
+<form method="POST">
+    <div class="form-group">
+        <label for="date">Date:</label>
+        <input type="date" class="form-control" id="date" name="date" value="{{ match.date.strftime('%Y-%m-%d') }}" required>
+    </div>
+    <div class="form-group">
+        <label for="wrestler1_id">Wrestler 1:</label>
+        <select class="form-control" id="wrestler1_id" name="wrestler1_id" required>
+            {% for wrestler in wrestlers %}
+            <option value="{{ wrestler.id }}" {% if wrestler.id == match.wrestler1_id %}selected{% endif %}>
+                {{ wrestler.name }} ({{ wrestler.school }}) - {{ wrestler.weight_class }} lbs
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="wrestler2_id">Wrestler 2:</label>
+        <select class="form-control" id="wrestler2_id" name="wrestler2_id" required>
+            {% for wrestler in wrestlers %}
+            <option value="{{ wrestler.id }}" {% if wrestler.id == match.wrestler2_id %}selected{% endif %}>
+                {{ wrestler.name }} ({{ wrestler.school }}) - {{ wrestler.weight_class }} lbs
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="winner_id">Winner:</label>
+        <select class="form-control" id="winner_id" name="winner_id" required>
+            <option value="{{ match.wrestler1_id }}" {% if match.winner_id == match.wrestler1_id %}selected{% endif %}>Wrestler 1</option>
+            <option value="{{ match.wrestler2_id }}" {% if match.winner_id == match.wrestler2_id %}selected{% endif %}>Wrestler 2</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="win_type">Win Type:</label>
+        <select class="form-control" id="win_type" name="win_type" required>
+            {% for win_type in ['Decision', 'Major Decision', 'Technical Fall', 'Fall', 'Forfeit', 'Injury Default'] %}
+            <option value="{{ win_type }}" {% if win_type == match.win_type %}selected{% endif %}>{{ win_type }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Update Match</button>
+</form>
+
+<a href="{{ url_for('wrestler_detail', wrestler_id=match.wrestler1_id) }}" class="btn btn-secondary mt-3">Back to Wrestler Details</a>
+{% endblock %}

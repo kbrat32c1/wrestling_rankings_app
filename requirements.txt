@@ -1,0 +1,8 @@
+Flask
+flask_sqlalchemy
+flask_migrate
+pytz
+gunicorn
+numpy
+scipy
+

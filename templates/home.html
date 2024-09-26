@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Home - NCAA Wrestling Rankings{% endblock %}
+
+{% block content %}
+<h1>Wrestling Rankings</h1>
+
+{% for weight_class in weight_class_data %}
+    <h2>{{ weight_class.weight }} lbs</h2>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Wrestler</th>
+                <th>School</th>
+                <th>Record</th>
+                <th>Elo Rating</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for wrestler in weight_class.wrestlers %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">{{ wrestler.name }}</a></td>
+                    <td>{{ wrestler.school }}</td>
+                    <td>{{ wrestler.wins }}-{{ wrestler.losses }}</td>
+                    <td>{{ "%.2f"|format(wrestler.elo_rating) }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Link to View Full Rankings for this Weight Class -->
+    <div>
+        <a href="{{ url_for('rankings', weight_class=weight_class.weight) }}" class="btn btn-primary">View Full Rankings for {{ weight_class.weight }} lbs</a>
+    </div>
+{% endfor %}
+
+<!-- Clear All Data Form -->
+<div class="mt-4">
+    <form action="{{ url_for('clear_data') }}" method="POST" onsubmit="return confirm('Are you sure you want to delete all data? This cannot be undone!');">
+        <button type="submit" class="btn btn-danger">Clear All Data</button>
+    </form>
+</div>
+
+{% endblock %}

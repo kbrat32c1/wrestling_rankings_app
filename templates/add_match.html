@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Add New Match{% endblock %}
+
+{% block content %}
+<h1>Add New Match</h1>
+
+<form method="POST">
+    <div class="form-group">
+        <label for="date">Date:</label>
+        <input type="date" class="form-control" id="date" name="date" required>
+    </div>
+    <div class="form-group">
+        <label for="wrestler1_id">Wrestler 1:</label>
+        <select class="form-control" id="wrestler1_id" name="wrestler1_id" required>
+            <option value="">Select Wrestler 1</option>
+            {% for wrestler in wrestlers %}
+            <option value="{{ wrestler.id }}">{{ wrestler.display_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="wrestler2_id">Wrestler 2:</label>
+        <select class="form-control" id="wrestler2_id" name="wrestler2_id" required>
+            <option value="">Select Wrestler 2</option>
+            {% for wrestler in wrestlers %}
+            <option value="{{ wrestler.id }}">{{ wrestler.display_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="winner_id">Winner:</label>
+        <select class="form-control" id="winner_id" name="winner_id" required>
+            <option value="">Select Winner</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="win_type">Win Type:</label>
+        <select class="form-control" id="win_type" name="win_type" required>
+            <option value="">Select Win Type</option>
+            <option value="Decision">Decision</option>
+            <option value="Major Decision">Major Decision</option>
+            <option value="Technical Fall">Technical Fall</option>
+            <option value="Fall">Fall</option>
+            <option value="Forfeit">Forfeit</option>
+            <option value="Injury Default">Injury Default</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Match</button>
+</form>
+
+<a href="{{ url_for('home') }}" class="btn btn-secondary mt-3">Back to Home</a>
+
+<script>
+    document.getElementById('wrestler1_id').addEventListener('change', updateWinnerOptions);
+    document.getElementById('wrestler2_id').addEventListener('change', updateWinnerOptions);
+
+    function updateWinnerOptions() {
+        const wrestler1 = document.getElementById('wrestler1_id');
+        const wrestler2 = document.getElementById('wrestler2_id');
+        const winner = document.getElementById('winner_id');
+
+        winner.innerHTML = '<option value="">Select Winner</option>';
+
+        if (wrestler1.value) {
+            const option = document.createElement('option');
+            option.value = wrestler1.value;
+            option.textContent = wrestler1.options[wrestler1.selectedIndex].text;
+            winner.appendChild(option);
+        }
+
+        if (wrestler2.value) {
+            const option = document.createElement('option');
+            option.value = wrestler2.value;
+            option.textContent = wrestler2.options[wrestler2.selectedIndex].text;
+            winner.appendChild(option);
+        }
+    }
+</script>
+{% endblock %}

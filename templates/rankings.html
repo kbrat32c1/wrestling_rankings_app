@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Rankings - {{ weight_class }} lbs{% endblock %}
+
+{% block content %}
+<h1>{{ weight_class }} lbs Rankings</h1>
+
+<form method="POST" action="{{ url_for('bulk_delete_wrestlers') }}" id="bulkDeleteForm">
+    <!-- Include a hidden field for weight class -->
+    <input type="hidden" name="weight_class" value="{{ weight_class }}">
+
+    <!-- Add a "Select All" option at the top -->
+    <div class="mb-3">
+        <input type="checkbox" id="selectAll" onclick="selectAllWrestlers(this)"> Select All
+    </div>
+
+    <!-- Bulk Delete Button at the top for easy access -->
+    <button type="submit" class="btn btn-danger mb-3" onclick="return confirm('Are you sure you want to delete the selected wrestlers?')">
+        Delete Selected Wrestlers
+    </button>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Select</th>
+                <th>Rank</th>
+                <th>Wrestler</th>
+                <th>School</th>
+                <th>Wins</th>
+                <th>Losses</th>
+                <th>Elo Rating</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for wrestler in wrestlers %}
+            <tr>
+                <!-- Checkbox to select wrestler -->
+                <td>
+                    <input type="checkbox" name="wrestler_ids" value="{{ wrestler.id }}" class="wrestlerCheckbox">
+                </td>
+                <td>{{ loop.index }}</td>
+                <td>
+                    <!-- Hyperlink the wrestler name to their profile -->
+                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">{{ wrestler.name }}</a>
+                </td>
+                <td>{{ wrestler.school }}</td>
+                <td>{{ wrestler.wins }}</td>
+                <td>{{ wrestler.losses }}</td>
+                <td>{{ "%.2f"|format(wrestler.elo_rating) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Bulk Delete Button at the bottom for convenience -->
+    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete the selected wrestlers?')">
+        Delete Selected Wrestlers
+    </button>
+</form>
+
+<script>
+    // Function to select or deselect all checkboxes
+    function selectAllWrestlers(source) {
+        checkboxes = document.getElementsByClassName('wrestlerCheckbox');
+        for (var i = 0; i < checkboxes.length; i++) {
+            checkboxes[i].checked = source.checked;
+        }
+    }
+</script>
+
+{% endblock %}

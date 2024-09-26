@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Upload CSV{% endblock %}
+
+{% block content %}
+<h2>Upload Match Results CSV</h2>
+
+<form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="file">Select CSV file:</label>
+        <input type="file" class="form-control-file" id="file" name="file" accept=".csv" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Upload</button>
+</form>
+
+<h3>CSV Format</h3>
+<p>Your CSV file should have the following columns:</p>
+<ul>
+    <li>Date (YYYY-MM-DD)</li>
+    <li>Wrestler1</li>
+    <li>School1</li>
+    <li>Wrestler2</li>
+    <li>School2</li>
+    <li>WeightClass</li>
+    <li>Winner</li>
+    <li>WinType</li>
+</ul>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Wrestler - {{ wrestler.name }}{% endblock %}
+
+{% block content %}
+<h1>Edit Wrestler: {{ wrestler.name }}</h1>
+
+<form method="POST">
+    <div class="form-group">
+        <label for="name">Name:</label>
+        <input type="text" class="form-control" id="name" name="name" value="{{ wrestler.name }}" required>
+    </div>
+    <div class="form-group">
+        <label for="school">School:</label>
+        <select class="form-control" id="school" name="school" required>
+            {% for school in schools %}
+            <option value="{{ school }}" {% if school == wrestler.school %}selected{% endif %}>{{ school }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="weight_class">Weight Class:</label>
+        <select class="form-control" id="weight_class" name="weight_class" required>
+            {% for weight in weight_classes %}
+            <option value="{{ weight }}" {% if weight == wrestler.weight_class %}selected{% endif %}>{{ weight }} lbs</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Update Wrestler</button>
+</form>
+
+<a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}" class="btn btn-secondary mt-3">Back to Wrestler Details</a>
+{% endblock %}
