@@ -8,8 +8,10 @@ body {
 
 h1, h2 {
     color: #333;
+    margin-bottom: 20px;
 }
 
+/* Table styling */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -22,11 +24,38 @@ th, td {
     border-bottom: 1px solid #ddd;
 }
 
+/* Updated table header style */
 th {
-    background-color: #4CAF50;
-    color: white;
+    background-color: #007bff;  /* Blue header background */
+    color: white;  /* White text */
+    font-weight: bold;
+    position: sticky;  /* Sticky headers */
+    top: 0;
+    z-index: 1;
 }
 
+/* Zebra striping for table rows */
+tr:nth-child(even) {
+    background-color: #f2f2f2;  /* Light gray background for every other row */
+}
+
+/* Hover effect for rows */
+tr:hover {
+    background-color: #e0e0e0;  /* Darker gray on hover */
+}
+
+/* Table cell padding */
+td {
+    padding: 10px;
+}
+
+/* Improve table readability */
+.table-striped {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+/* Link styling */
 a {
     color: #1a73e8;
     text-decoration: none;
@@ -36,6 +65,7 @@ a:hover {
     text-decoration: underline;
 }
 
+/* Form group styling */
 .form-group {
     margin-bottom: 15px;
 }
@@ -53,19 +83,107 @@ a:hover {
     border-radius: 4px;
 }
 
-button[type="submit"] {
-    background-color: #4CAF50;
+/* Improved Dropdown Styling */
+.custom-select {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 1.2rem;
+    border: 2px solid #007bff;  /* Blue border */
+    border-radius: 6px;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);  /* Light shadow */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    appearance: none;  /* Remove default dropdown arrow */
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23007bff" d="M2 0L0 2h4z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+}
+
+.custom-select:hover, .custom-select:focus {
+    border-color: #0056b3;  /* Darker blue on hover/focus */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);  /* Slightly stronger shadow on hover/focus */
+    outline: none;  /* Remove default outline */
+}
+
+/* Card Enhancements */
+.card {
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);  /* Adds a shadow */
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-5px);  /* Raises the card slightly on hover */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);  /* Bigger shadow on hover */
+}
+
+/* Card Title Styling */
+.card-title {
+    font-size: 1.25rem;
+    color: #007bff;
+    margin-bottom: 15px;
+}
+
+/* Medal Icon for cards */
+.fa-medal {
+    color: #f0ad4e;  /* Gold medal color */
+    margin-bottom: 10px;
+}
+
+/* Top 3 Wrestlers Section */
+.card-text {
+    font-size: 1rem;
+    color: #333;
+}
+
+.card-text strong {
+    font-size: 1.1rem;
+    color: #007bff;
+}
+
+.text-muted {
+    color: #888;  /* Lighter gray for Elo scores */
+}
+
+/* Divider for clean separation */
+hr {
+    border: 0;
+    height: 1px;
+    background: #ddd;
+    margin: 1.5rem 0;
+}
+
+/* Button Enhancements */
+button[type="submit"], .btn-primary {
+    background-color: #28a745;  /* Green button */
     color: white;
     padding: 10px 15px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 1.1rem;  /* Larger button text */
+    transition: background-color 0.3s ease;
 }
 
-button[type="submit"]:hover {
-    background-color: #45a049;
+button[type="submit"]:hover, .btn-primary:hover {
+    background-color: #218838;  /* Darker green on hover */
 }
 
+.btn-danger {
+    background-color: #dc3545;
+    border: none;
+    padding: 10px 20px;
+    font-size: 1.1rem;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;  /* Darker red on hover */
+}
+
+/* Flash message styling */
 .flashes {
     margin-bottom: 20px;
 }
@@ -76,6 +194,7 @@ button[type="submit"]:hover {
     margin-bottom: 10px;
 }
 
+/* Success and error flash messages */
 .alert-success {
     background-color: #d4edda;
     border-color: #c3e6cb;
@@ -86,4 +205,107 @@ button[type="submit"]:hover {
     background-color: #f8d7da;
     border-color: #f5c6cb;
     color: #721c24;
+}
+
+/* Dropdown form styling */
+.form-control {
+    display: inline-block;
+    width: auto;
+    padding: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+/* Responsive Table for Mobile */
+.table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;  /* Allows horizontal scrolling */
+}
+
+@media (max-width: 768px) {
+    h1, h2 {
+        font-size: 1.5rem;  /* Smaller headings on mobile */
+    }
+
+    .btn {
+        font-size: 1rem;  /* Smaller button text on mobile */
+    }
+}
+
+/* Spacing Enhancements */
+.container {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+h1, h2 {
+    margin-bottom: 20px;
+}
+
+.mt-4 {
+    margin-top: 20px;
+}
+
+.mb-4 {
+    margin-bottom: 20px;
+}
+
+/* Additional Enhancements */
+
+/* Centered Text for Buttons and Cards */
+.text-center {
+    text-align: center;
+}
+
+/* Shadow for the Navigation Bar */
+.navbar {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Typography Enhancements */
+h1 {
+    font-size: 2.5rem;
+    font-weight: bold;
+}
+
+h2 {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.card-text {
+    font-size: 1rem;
+    color: #555;
+}
+
+/* Navbar Enhancements */
+.navbar a.nav-link {
+    transition: color 0.3s ease;
+}
+
+.navbar a.nav-link:hover {
+    color: #28a745;  /* Change color on hover */
+}
+
+/* Animation Enhancements */
+
+/* Smooth Transition for Dropdown */
+.form-control {
+    transition: box-shadow 0.3s ease;
+}
+
+.form-control:focus {
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+/* Button Hover Animation */
+.btn-primary, .btn-danger {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover, .btn-danger:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }

@@ -3,44 +3,55 @@
 {% block title %}Home - NCAA Wrestling Rankings{% endblock %}
 
 {% block content %}
-<h1>Wrestling Rankings</h1>
 
-{% for weight_class in weight_class_data %}
-    <h2>{{ weight_class.weight }} lbs</h2>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Rank</th>
-                <th>Wrestler</th>
-                <th>School</th>
-                <th>Record</th>
-                <th>Elo Rating</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for wrestler in weight_class.wrestlers %}
-                <tr>
-                    <td>{{ loop.index }}</td>
-                    <td><a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">{{ wrestler.name }}</a></td>
-                    <td>{{ wrestler.school }}</td>
-                    <td>{{ wrestler.wins }}-{{ wrestler.losses }}</td>
-                    <td>{{ "%.2f"|format(wrestler.elo_rating) }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<h1 class="text-center mb-4">NCAA Wrestling Rankings</h1>
 
-    <!-- Link to View Full Rankings for this Weight Class -->
-    <div>
-        <a href="{{ url_for('rankings', weight_class=weight_class.weight) }}" class="btn btn-primary">View Full Rankings for {{ weight_class.weight }} lbs</a>
+<!-- Dropdown for weight classes -->
+<div class="form-group mb-4">
+    <label for="weightClassSelect" class="font-weight-bold">Jump to a weight class:</label>
+    <select id="weightClassSelect" class="form-control custom-select" onchange="location = this.value;">
+        <option value="">Select a weight class</option>
+        {% for weight_class in weight_class_data %}
+        <option value="{{ url_for('rankings', weight_class=weight_class.weight) }}">{{ weight_class.weight }} lbs</option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Cards for each weight class -->
+<div class="row">
+    {% for weight_class in weight_class_data %}
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body d-flex flex-column">
+                <!-- Icon at the top for visual appeal -->
+                <div class="mb-3 text-center">
+                    <i class="fas fa-medal fa-3x text-warning"></i>
+                </div>
+                <!-- Weight Class Title -->
+                <h5 class="card-title text-center font-weight-bold">{{ weight_class.weight }} lbs Rankings</h5>
+                
+                <!-- Divider line for a clean separation -->
+                <hr class="my-3">
+
+                <!-- Top 3 Wrestlers -->
+                <p class="card-text">
+                    <strong class="d-block text-center">Top 3 Wrestlers</strong>
+                    {% for wrestler in weight_class.wrestlers[:3] %}
+                    <div class="text-center mb-2">
+                        <span class="font-weight-bold">Rank {{ loop.index }}: </span>{{ wrestler.name }}<br>
+                        <small class="text-muted">Elo: {{ "%.2f"|format(wrestler.elo_rating) }}</small>
+                    </div>
+                    {% endfor %}
+                </p>
+                
+                <!-- Button to View Full Rankings -->
+                <div class="mt-auto text-center">
+                    <a href="{{ url_for('rankings', weight_class=weight_class.weight) }}" class="btn btn-primary btn-block">View Full Rankings</a>
+                </div>
+            </div>
+        </div>
     </div>
-{% endfor %}
-
-<!-- Clear All Data Form -->
-<div class="mt-4">
-    <form action="{{ url_for('clear_data') }}" method="POST" onsubmit="return confirm('Are you sure you want to delete all data? This cannot be undone!');">
-        <button type="submit" class="btn btn-danger">Clear All Data</button>
-    </form>
+    {% endfor %}
 </div>
 
 {% endblock %}
