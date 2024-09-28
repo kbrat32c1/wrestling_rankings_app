@@ -43,3 +43,23 @@ class WrestlingDatabase:
 
     def get_wrestlers_by_weight_class(self, weight_class: int) -> List[Wrestler]:
         return [w for w in self.wrestlers.values() if w.weight_class == weight_class]
+
+    # New method to calculate wrestling rankings
+    def wrestling_rankings(self, weight_class: int) -> List[Wrestler]:
+        wrestlers_in_class = self.get_wrestlers_by_weight_class(weight_class)
+        # Sort wrestlers by rating, from highest to lowest
+        return sorted(wrestlers_in_class, key=lambda w: w.rating, reverse=True)
+
+# Example usage
+if __name__ == "__main__":
+    # Initialize the database
+    db = WrestlingDatabase()
+
+    # Add sample wrestlers
+    db.add_wrestler(Wrestler(id="1", name="John Doe", school="School A", weight_class=125))
+    db.add_wrestler(Wrestler(id="2", name="Jane Smith", school="School B", weight_class=125, rating=1600))
+
+    # Get and print the rankings for the 125 lbs weight class
+    rankings = db.wrestling_rankings(125)
+    for wrestler in rankings:
+        print(f"Name: {wrestler.name}, Rating: {wrestler.rating}")
