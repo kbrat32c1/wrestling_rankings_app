@@ -198,7 +198,6 @@ def get_or_create_wrestler(name, school, weight_class):
     return wrestler
 
 # Function to validate and process CSV
-# Function to validate and process CSV
 def validate_and_process_csv(file):
     try:
         csv_file = TextIOWrapper(file, encoding='utf-8')
@@ -212,10 +211,7 @@ def validate_and_process_csv(file):
             flash(f"Missing required columns in CSV: {', '.join(missing_headers)}", 'error')
             return False
 
-        errors = []
-        valid_rows = []
-
-        # Iterate through each row and validate
+        # Process rows one by one to handle large CSVs efficiently
         for row_num, row in enumerate(csv_reader, start=1):
             try:
                 wrestler1_name = row['Wrestler1'].strip().title()
@@ -228,25 +224,24 @@ def validate_and_process_csv(file):
 
                 # Validate weight class
                 if not weight_class.isdigit() or int(weight_class) not in WEIGHT_CLASSES:
-                    errors.append(f"Invalid weight class at row {row_num}: {weight_class}")
+                    flash(f"Invalid weight class at row {row_num}: {weight_class}", 'error')
                     continue
 
-                # Attempt to parse the date using the flexible date parsing function
+                # Parse the date using the flexible date parsing function
                 try:
                     raw_date = row['Date']
-                    print(f"Processing Row {row_num}, Date: '{raw_date}'")  # Debugging log
                     match_date = parse_date(raw_date)
                 except ValueError as e:
-                    errors.append(f"Invalid date format at row {row_num}: {raw_date} ({str(e)})")
+                    flash(f"Invalid date format at row {row_num}: {raw_date} ({str(e)})", 'error')
                     continue
 
                 # Validate other fields
                 if not wrestler1_name or not school1_name or not wrestler2_name or not school2_name or not winner_name or not win_type:
-                    errors.append(f"Missing required fields at row {row_num}")
+                    flash(f"Missing required fields at row {row_num}", 'error')
                     continue
 
                 if wrestler1_name == wrestler2_name and school1_name == school2_name:
-                    errors.append(f"Invalid match (self-match) at row {row_num}")
+                    flash(f"Invalid match (self-match) at row {row_num}", 'error')
                     continue
 
                 # Get or create wrestlers
@@ -255,7 +250,7 @@ def validate_and_process_csv(file):
 
                 # Validate winner
                 if winner_name not in [wrestler1.name, wrestler2.name]:
-                    errors.append(f"Winner does not match wrestler1 or wrestler2 at row {row_num}")
+                    flash(f"Winner does not match wrestler1 or wrestler2 at row {row_num}", 'error')
                     continue
 
                 # Check for existing match
@@ -266,38 +261,47 @@ def validate_and_process_csv(file):
                 ).first()
 
                 if existing_match:
-                    app.logger.info(f"Duplicate match detected: {wrestler1.name} vs {wrestler2.name} on {match_date}")
-                    log_skipped_match(wrestler1.name, wrestler2.name, match_date, "Match already exists")
-                    continue  # Skip this row if the match already exists
+                    flash(f"Duplicate match detected: {wrestler1.name} vs {wrestler2.name} on {match_date}", 'info')
+                    continue  # Skip if the match already exists
 
-                # Prepare the valid row for further processing
-                valid_rows.append({
-                    'date': match_date.strftime('%Y-%m-%d'),
-                    'wrestler1': wrestler1.name,
-                    'school1': wrestler1.school,
-                    'wrestler2': wrestler2.name,
-                    'school2': wrestler2.school,
-                    'weight_class': int(weight_class),
-                    'winner': winner_name,
-                    'win_type': win_type
-                })
+                # Create and add new match
+                winner = wrestler1 if winner_name == wrestler1.name else wrestler2
+                new_match = Match(
+                    date=match_date,
+                    wrestler1_id=wrestler1.id,
+                    wrestler2_id=wrestler2.id,
+                    winner_id=winner.id,
+                    win_type=win_type
+                )
+                db.session.add(new_match)
+
+                # Update win/loss records
+                if winner == wrestler1:
+                    wrestler1.wins += 1
+                    wrestler2.losses += 1
+                else:
+                    wrestler2.wins += 1
+                    wrestler1.losses += 1
+
+                # Recalculate Elo ratings for both wrestlers
+                recalculate_elo(wrestler1)
+                recalculate_elo(wrestler2)
+
+                # Commit changes after processing each row
+                db.session.commit()
 
             except Exception as e:
-                errors.append(f"Error processing row {row_num}: {str(e)}")
+                flash(f"Error processing row {row_num}: {str(e)}", 'error')
+                db.session.rollback()
+                continue
 
-        # If there are errors, flash them to the user
-        if errors:
-            flash(f"Errors in CSV file: {len(errors)} error(s)", 'error')
-            for error in errors:
-                flash(error, 'error')
-            return False
-        else:
-            flash(f"CSV file validated successfully!", 'success')
-            return valid_rows
+        flash(f"CSV file processed successfully!", 'success')
+        return True
 
     except Exception as e:
         flash(f"An error occurred during CSV validation: {str(e)}", 'error')
         return False
+
 
 # Routes
 @app.route('/')
