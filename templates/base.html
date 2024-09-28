@@ -43,11 +43,24 @@
                     </div>
                 </li>
             </ul>
-            <!-- Undo Button -->
-            <form action="/undo" method="post" class="form-inline my-2 my-lg-0">
-                <input type="hidden" name="next" value="http://127.0.0.1:5000/">
-                <button type="submit" class="btn btn-warning my-2 my-sm-0">Undo Last Action</button>
-            </form>
+            <!-- Right side: Undo Button, Login/Logout -->
+            <ul class="navbar-nav ml-auto">
+                <!-- Undo Button -->
+                <li class="nav-item">
+                    <form action="/undo" method="post" class="form-inline my-2 my-lg-0">
+                        <input type="hidden" name="next" value="http://127.0.0.1:5000/">
+                        <button type="submit" class="btn btn-warning my-2 my-sm-0">Undo Last Action</button>
+                    </form>
+                </li>
+                <!-- Login/Logout Button -->
+                <li class="nav-item">
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('logout') }}" class="btn btn-secondary my-2 my-sm-0">Logout</a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="btn btn-primary my-2 my-sm-0">Login</a>
+                    {% endif %}
+                </li>
+            </ul>
         </div>
     </nav>
 

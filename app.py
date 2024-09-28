@@ -1,7 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from datetime import datetime
+from functools import wraps
 import math
 import logging
 import csv
@@ -10,6 +11,10 @@ import traceback
 import difflib
 from io import TextIOWrapper
 from datetime import timezone
+from flask_login import UserMixin
+from flask_login import LoginManager, login_user, logout_user, current_user, login_required
+from werkzeug.security import check_password_hash, generate_password_hash, check_password_hash
+
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///wrestling.db'
@@ -19,6 +24,20 @@ app.config['SECRET_KEY'] = 'your_secret_key_here'  # Required for flash messages
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+
+# Initialize the login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+# Redirect users to the login page if they aren't logged in
+login_manager.login_view = 'login'
+
+# Define the user loader for Flask-Login
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -157,8 +176,6 @@ def recalculate_elo(wrestler):
     # Log the final recalculated Elo rating
     logger.info(f"Final Elo for {wrestler.name}: {wrestler.elo_rating}")
     db.session.commit()
-
-
 
 
 # Flexible date parsing function
@@ -303,6 +320,32 @@ def validate_and_process_csv(file):
         return False
 
 
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+
+    def set_password(self, password):
+        """Hashes the password and stores it."""
+        self.password = generate_password_hash(password, method='pbkdf2:sha256')
+
+    def check_password(self, password):
+        """Checks the password against the hashed value in the database."""
+        return check_password_hash(self.password, password)
+
+
+
+# Utility functions and decorators (admin_required goes here)
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            abort(403)  # Forbidden
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # Routes
 @app.route('/')
 def home():
@@ -365,6 +408,8 @@ def wrestler_detail(wrestler_id):
 
 
 @app.route('/add_wrestler', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def add_wrestler():
     if request.method == 'POST':
         name = request.form['name'].strip()
@@ -404,6 +449,8 @@ def add_wrestler():
 
 
 @app.route('/add_match', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def add_match():
     if request.method == 'POST':
         try:
@@ -490,6 +537,8 @@ def add_match():
 
 
 @app.route('/edit_match/<int:match_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def edit_match(match_id):
     match = Match.query.get_or_404(match_id)
     
@@ -537,6 +586,8 @@ def edit_match(match_id):
 
 
 @app.route('/edit_wrestler/<int:wrestler_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def edit_wrestler(wrestler_id):
     wrestler = Wrestler.query.get_or_404(wrestler_id)
     
@@ -557,6 +608,8 @@ def edit_wrestler(wrestler_id):
     return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS)
 
 @app.route('/delete_wrestler/<int:wrestler_id>', methods=['POST'])
+@login_required
+@admin_required
 def delete_wrestler(wrestler_id):
     wrestler = Wrestler.query.get_or_404(wrestler_id)
 
@@ -590,6 +643,8 @@ def delete_wrestler(wrestler_id):
 
 
 @app.route('/delete_match/<int:match_id>', methods=['POST'])
+@login_required
+@admin_required
 def delete_match(match_id):
     match = Match.query.get_or_404(match_id)
     wrestler1 = Wrestler.query.get(match.wrestler1_id)
@@ -614,10 +669,9 @@ def delete_match(match_id):
     return redirect(url_for('wrestler_detail', wrestler_id=wrestler1.id))
 
 
-
-from datetime import datetime
-
 @app.route('/undo', methods=['POST'])
+@login_required
+@admin_required
 def undo():
     last_action = session.get('last_action')
     if not last_action:
@@ -808,6 +862,8 @@ def validate_and_process_csv(file):
 
 
 @app.route('/export_rankings')
+@login_required
+@admin_required
 def export_rankings():
     try:
         output = io.StringIO()
@@ -844,6 +900,8 @@ def export_rankings():
         return f"An error occurred: {str(e)}", 500
     
 @app.route('/export_wrestlers')
+@login_required
+@admin_required
 def export_wrestlers():
     try:
         output = io.StringIO()
@@ -878,6 +936,8 @@ def export_wrestlers():
         return f"An error occurred: {str(e)}", 500
     
 @app.route('/export_matches')
+@login_required
+@admin_required
 def export_matches():
     try:
         output = io.StringIO()
@@ -911,6 +971,8 @@ def export_matches():
         return f"An error occurred: {str(e)}", 500
     
 @app.route('/bulk_delete_wrestlers', methods=['POST'])
+@login_required
+@admin_required
 def bulk_delete_wrestlers():
     wrestler_ids = request.form.getlist('wrestler_ids')  # Get the list of wrestler IDs from the form
 
@@ -969,6 +1031,8 @@ def bulk_delete_wrestlers():
     return redirect(url_for('rankings', weight_class=wrestlers[0].weight_class if wrestlers else 125))
 
 @app.route('/clear_data', methods=['POST'])
+@login_required
+@admin_required
 def clear_data():
     try:
         # Clear all matches first
@@ -987,6 +1051,8 @@ def clear_data():
     return redirect(url_for('home'))
 
 @app.route('/upload_csv', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def upload_csv():
     if request.method == 'POST':
         # Check if a file was uploaded
@@ -1017,6 +1083,32 @@ def upload_csv():
     # For GET request, show the form and clear session feedback
     csv_feedback = session.pop('csv_feedback', None)
     return render_template('upload_csv.html', csv_feedback=csv_feedback)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+
+        # Check if user exists and the password is correct
+        if user and user.check_password(password):
+            login_user(user)  # Logs the user in
+            flash('Logged in successfully!', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid username or password', 'danger')
+
+    return render_template('login.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('home'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)

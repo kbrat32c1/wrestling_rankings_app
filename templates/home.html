@@ -54,13 +54,20 @@
     {% endfor %}
 </div>
 
-<!-- Clear Data Button -->
-<div class="text-center mt-4">
-    <form action="{{ url_for('clear_data') }}" method="POST" onsubmit="return confirm('Are you sure you want to clear all data? This action cannot be undone!');">
-        <button type="submit" class="btn btn-danger">Clear Data</button>
-    </form>
-</div>
+<!-- Admin-only options -->
+{% if current_user.is_authenticated and current_user.is_admin %}
+    <!-- Clear Data Button -->
+    <div class="text-center mt-4">
+        <form action="{{ url_for('clear_data') }}" method="POST" onsubmit="return confirm('Are you sure you want to clear all data? This action cannot be undone!');">
+            <button type="submit" class="btn btn-danger">Clear Data</button>
+        </form>
+    </div>
 
+    <!-- Add Wrestler Button -->
+    <div class="text-center mt-4">
+        <a href="{{ url_for('add_wrestler') }}" class="btn btn-success">Add Wrestler</a>
+    </div>
+{% endif %}
 
 <!-- JavaScript for Confirmation Dialog -->
 <script>
