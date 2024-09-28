@@ -30,6 +30,7 @@ h1, h2 {
     display: flex;
     justify-content: space-between; /* Ensure alignment of content */
     align-items: center; /* Vertically align navbar items */
+    flex-wrap: wrap; /* Ensure navbar wraps on smaller screens */
 }
 
 /* Navbar Brand (Logo) */
@@ -48,6 +49,7 @@ h1, h2 {
 .navbar-nav {
     display: flex;
     align-items: center; /* Align navbar links vertically */
+    flex-direction: row; /* Ensure the links stay in a row on desktop */
 }
 
 .navbar-nav .nav-item {
@@ -67,6 +69,25 @@ h1, h2 {
 /* Align the 'Home' link properly */
 .navbar-brand {
     line-height: inherit; /* Ensure the same line-height as other nav items */
+}
+
+/* Navbar Toggler for Mobile */
+.navbar-toggler {
+    border: none;
+}
+
+.navbar-toggler-icon {
+    width: 1.5em;
+    height: 1.5em;
+}
+
+/* Collapse behavior for mobile navbar */
+.collapse {
+    flex-basis: 100%; /* Make sure the navbar takes full width on mobile */
+}
+
+.collapse.show {
+    display: block; /* Ensure navbar shows up properly when toggled */
 }
 
 /* Add margin between Undo and Login/Logout buttons */
@@ -296,6 +317,30 @@ hr {
     .btn {
         font-size: 1rem;
     }
+
+    /* Mobile Navbar Styles */
+    .navbar {
+        flex-direction: column; /* Stack navbar items vertically on mobile */
+    }
+
+    .navbar-nav {
+        flex-direction: column; /* Ensure links are displayed vertically */
+        width: 100%; /* Full width for mobile */
+        text-align: center; /* Center-align links */
+    }
+
+    .navbar-nav .nav-item {
+        margin-left: 0; /* Remove horizontal spacing */
+        margin-bottom: 10px; /* Add spacing between items */
+    }
+
+    .navbar-toggler {
+        margin-bottom: 10px; /* Add space between toggler and nav items */
+    }
+
+    .navbar .form-inline {
+        margin-top: 10px; /* Add space between form and nav items */
+    }
 }
 
 /* Footer */
@@ -313,3 +358,8 @@ footer img {
 }
 
 /* Additional spacing enhancements */
+.container {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
