@@ -667,102 +667,144 @@ def undo():
     session.pop('last_action', None)
     return redirect(url_for('home'))
 
+# Function to validate and process CSV with fuzzy matching suggestions
+def validate_and_process_csv(file):
+    try:
+        csv_file = TextIOWrapper(file, encoding='utf-8')
+        csv_reader = csv.DictReader(csv_file)
 
+        # Strip any extra spaces from the headers
+        csv_reader.fieldnames = [header.strip() for header in csv_reader.fieldnames]
 
-@app.route('/upload_csv', methods=['GET', 'POST'])
-def upload_csv():
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            flash('No file part', 'error')
-            return redirect(request.url)
+        required_headers = ['Date', 'Wrestler1', 'School1', 'Wrestler2', 'School2', 'WeightClass', 'Winner', 'WinType']
         
-        file = request.files['file']
-        if file.filename == '':
-            flash('No selected file', 'error')
-            return redirect(request.url)
+        # Ensure the file has the correct headers
+        if set(required_headers).difference(set(csv_reader.fieldnames)):
+            missing_headers = list(set(required_headers).difference(set(csv_reader.fieldnames)))
+            flash(f"Missing required columns in CSV: {', '.join(missing_headers)}", 'error')
+            return False
 
-        if file and file.filename.endswith('.csv'):
+        # Initialize counters and lists to collect feedback
+        added_matches = 0
+        skipped_duplicates = 0
+        row_errors = 0
+        detailed_feedback = []
+
+        # Process rows one by one to handle large CSVs efficiently
+        for row_num, row in enumerate(csv_reader, start=1):
             try:
-                added_matches = []
+                # Extract data from the row
+                wrestler1_name = row['Wrestler1'].strip().title()
+                school1_name = row['School1'].strip().title()
+                wrestler2_name = row['Wrestler2'].strip().title()
+                school2_name = row['School2'].strip().title()
+                weight_class = row['WeightClass'].strip()
+                winner_name = row['Winner'].strip().title()
+                win_type = row['WinType'].strip()
 
-                # Process the CSV file
-                csv_file = TextIOWrapper(file, encoding='utf-8')
-                csv_reader = csv.DictReader(csv_file)
+                # Validate weight class
+                if not weight_class.isdigit() or int(weight_class) not in WEIGHT_CLASSES:
+                    detailed_feedback.append(f"Row {row_num}: Invalid weight class '{weight_class}'.")
+                    row_errors += 1
+                    continue
 
-                required_headers = ['Date', 'Wrestler1', 'School1', 'Wrestler2', 'School2', 'WeightClass', 'Winner', 'WinType']
-                missing_headers = [header for header in required_headers if header not in csv_reader.fieldnames]
-                if missing_headers:
-                    flash(f"Missing required columns in CSV: {', '.join(missing_headers)}", 'error')
-                    return redirect(url_for('upload_csv'))
+                # Parse the date using the flexible date parsing function
+                try:
+                    raw_date = row['Date']
+                    match_date = parse_date(raw_date)
+                except ValueError as e:
+                    detailed_feedback.append(f"Row {row_num}: Invalid date format '{raw_date}' ({str(e)}).")
+                    row_errors += 1
+                    continue
 
-                for row_num, row in enumerate(csv_reader, start=1):
-                    try:
-                        # Parse and format the date
-                        match_date = parse_date(row['Date'])
-                        formatted_date = match_date.strftime('%Y-%m-%d')
+                # Validate other fields
+                if not all([wrestler1_name, school1_name, wrestler2_name, school2_name, winner_name, win_type]):
+                    detailed_feedback.append(f"Row {row_num}: Missing required fields.")
+                    row_errors += 1
+                    continue
 
-                        # Get or create wrestler1 and wrestler2
-                        wrestler1 = get_or_create_wrestler(row['Wrestler1'], row['School1'], row['WeightClass'])
-                        wrestler2 = get_or_create_wrestler(row['Wrestler2'], row['School2'], row['WeightClass'])
+                if wrestler1_name == wrestler2_name and school1_name == school2_name:
+                    detailed_feedback.append(f"Row {row_num}: Invalid match (self-match).")
+                    row_errors += 1
+                    continue
 
-                        # Check if the match already exists by looking for matches with the same date, wrestlers, and weight class
-                        existing_match = Match.query.filter_by(
-                            wrestler1_id=wrestler1.id,
-                            wrestler2_id=wrestler2.id,
-                            date=match_date
-                        ).first()
+                # Get or create wrestlers
+                wrestler1 = get_or_create_wrestler(wrestler1_name, school1_name, weight_class)
+                wrestler2 = get_or_create_wrestler(wrestler2_name, school2_name, weight_class)
 
-                        if existing_match:
-                            # Log or display that this match already exists, so it won't be added again
-                            flash(f"Match between {wrestler1.name} and {wrestler2.name} on {formatted_date} already exists.", 'info')
-                            continue  # Skip adding the match
+                # Validate winner
+                if winner_name not in [wrestler1.name, wrestler2.name]:
+                    # Fuzzy match suggestion using difflib
+                    possible_winners = [wrestler1.name, wrestler2.name]
+                    closest_matches = difflib.get_close_matches(winner_name, possible_winners, n=1)
 
-                        # Determine the winner
-                        winner = wrestler1 if row['Winner'] == row['Wrestler1'] else wrestler2
+                    if closest_matches:
+                        suggestion = f"Did you mean '{closest_matches[0]}'?"
+                    else:
+                        suggestion = "No close match found."
 
-                        # Create the match
-                        match = Match(
-                            date=match_date,
-                            wrestler1_id=wrestler1.id,
-                            wrestler2_id=wrestler2.id,
-                            winner_id=winner.id,
-                            win_type=row['WinType']
-                        )
-                        db.session.add(match)
+                    detailed_feedback.append(f"Row {row_num}: Winner '{winner_name}' does not match wrestler1 or wrestler2. {suggestion}")
+                    row_errors += 1
+                    continue
 
-                        # Update win/loss records
-                        if winner == wrestler1:
-                            wrestler1.wins += 1
-                            wrestler2.losses += 1
-                        else:
-                            wrestler2.wins += 1
-                            wrestler1.losses += 1
+                # Check for existing match
+                existing_match = Match.query.filter_by(
+                    wrestler1_id=wrestler1.id,
+                    wrestler2_id=wrestler2.id,
+                    date=match_date
+                ).first()
 
-                        # Commit the new match and the wrestler updates
-                        db.session.commit()
-                        added_matches.append(match.id)  # Track the added match
+                if existing_match:
+                    detailed_feedback.append(f"Row {row_num}: Duplicate match detected (already exists).")
+                    skipped_duplicates += 1
+                    continue  # Skip if the match already exists
 
-                        # Recalculate Elo ratings for both wrestlers involved
-                        recalculate_elo(wrestler1)
-                        recalculate_elo(wrestler2)
+                # Create and add new match
+                winner = wrestler1 if winner_name == wrestler1.name else wrestler2
+                new_match = Match(
+                    date=match_date,
+                    wrestler1_id=wrestler1.id,
+                    wrestler2_id=wrestler2.id,
+                    winner_id=winner.id,
+                    win_type=win_type
+                )
+                db.session.add(new_match)
 
-                    except Exception as e:
-                        db.session.rollback()
-                        flash(f"Error processing row {row_num}: {str(e)}", 'error')
-                        logger.error(f"Error processing row {row_num}: {str(e)}")
-                        return redirect(url_for('upload_csv'))
+                # Update win/loss records
+                if winner == wrestler1:
+                    wrestler1.wins += 1
+                    wrestler2.losses += 1
+                else:
+                    wrestler2.wins += 1
+                    wrestler1.losses += 1
 
-                flash(f'Successfully processed {len(added_matches)} new matches.', 'success')
-                return redirect(url_for('home'))
+                # Recalculate Elo ratings for both wrestlers
+                recalculate_elo(wrestler1)
+                recalculate_elo(wrestler2)
+
+                added_matches += 1
+                detailed_feedback.append(f"Row {row_num}: Match added successfully.")
 
             except Exception as e:
+                detailed_feedback.append(f"Row {row_num}: Error processing match ({str(e)}).")
+                row_errors += 1
                 db.session.rollback()
-                flash(f'An error occurred while processing the CSV: {str(e)}', 'error')
-                logger.error(f"An error occurred while processing the CSV: {str(e)}")
-                return redirect(url_for('upload_csv'))
+                continue
 
-    return render_template('upload_csv.html')
+        # Commit changes after processing all rows
+        db.session.commit()
 
+        # Provide feedback after processing
+        flash(f"CSV file processed successfully! {added_matches} matches added, {skipped_duplicates} duplicates skipped, {row_errors} errors encountered.", 'success')
+        
+        # Optionally, store detailed feedback in session for display on the next page
+        session['csv_feedback'] = detailed_feedback
+
+        return True
+
+    except Exception as e:
+        flash(f"An error occurred during CSV processing: {str(e)}", 'error')
+        return False
 
 
 @app.route('/export_rankings')
@@ -944,7 +986,37 @@ def clear_data():
 
     return redirect(url_for('home'))
 
+@app.route('/upload_csv', methods=['GET', 'POST'])
+def upload_csv():
+    if request.method == 'POST':
+        # Check if a file was uploaded
+        if 'file' not in request.files or request.files['file'].filename == '':
+            flash('No file selected', 'error')
+            return redirect(request.url)
 
+        file = request.files['file']
+
+        # Check if the uploaded file is a CSV
+        if file.filename.endswith('.csv'):
+            try:
+                # Call the function to process CSV
+                result = validate_and_process_csv(file)
+                
+                # If processing was successful
+                if result:
+                    flash('CSV uploaded and processed successfully!', 'success')
+                else:
+                    flash('CSV upload failed. Check the feedback for details.', 'error')
+            except Exception as e:
+                flash(f'Error processing file: {str(e)}', 'error')
+        else:
+            flash('Invalid file type. Please upload a CSV file.', 'error')
+
+        return redirect(url_for('upload_csv'))
+
+    # For GET request, show the form and clear session feedback
+    csv_feedback = session.pop('csv_feedback', None)
+    return render_template('upload_csv.html', csv_feedback=csv_feedback)
 
 if __name__ == '__main__':
     app.run(debug=True)

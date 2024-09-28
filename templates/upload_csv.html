@@ -3,26 +3,32 @@
 {% block title %}Upload CSV{% endblock %}
 
 {% block content %}
-<h2>Upload Match Results CSV</h2>
+<h1>Upload CSV</h1>
 
-<form method="POST" enctype="multipart/form-data">
+{% if flashes %}
+    <div class="flashes">
+        {% for message, category in get_flashed_messages(with_categories=True) %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<!-- CSV Upload Form -->
+<form action="{{ url_for('upload_csv') }}" method="post" enctype="multipart/form-data">
     <div class="form-group">
-        <label for="file">Select CSV file:</label>
-        <input type="file" class="form-control-file" id="file" name="file" accept=".csv" required>
+        <label for="csvFile">Upload CSV file:</label>
+        <input type="file" id="csvFile" name="file" class="form-control">
     </div>
     <button type="submit" class="btn btn-primary">Upload</button>
 </form>
 
-<h3>CSV Format</h3>
-<p>Your CSV file should have the following columns:</p>
-<ul>
-    <li>Date (YYYY-MM-DD)</li>
-    <li>Wrestler1</li>
-    <li>School1</li>
-    <li>Wrestler2</li>
-    <li>School2</li>
-    <li>WeightClass</li>
-    <li>Winner</li>
-    <li>WinType</li>
-</ul>
+<!-- Display CSV Feedback if available -->
+{% if csv_feedback %}
+    <h2>CSV Processing Feedback:</h2>
+    <ul>
+        {% for feedback in csv_feedback %}
+        <li>{{ feedback }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
 {% endblock %}
