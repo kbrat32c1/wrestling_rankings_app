@@ -315,7 +315,7 @@ hr {
     }
 
     .btn {
-        font-size: 1rem;
+        font-size: 1rem;  /* Smaller button text on mobile */
     }
 
     /* Mobile Navbar Styles */
@@ -335,6 +335,7 @@ hr {
     }
 
     .navbar-toggler {
+        margin-left: 10px; /* Adjust spacing between the logo and the 3-bar menu */
         margin-bottom: 10px; /* Add space between toggler and nav items */
     }
 
