@@ -330,10 +330,14 @@ hr {
     }
 
     .navbar-nav .nav-item {
-        margin-left: 0; /* Remove horizontal spacing */
-        margin-bottom: 10px; /* Add spacing between items */
+        margin-left: 15px; /* Space between nav items */
     }
-
+    
+    .navbar-nav .nav-link {
+        padding-top: 18px; /* Adjust padding for alignment */
+        padding-bottom: 18px; /* Consistent padding for vertical alignment */
+    }
+    
     .navbar-toggler {
         margin-left: 10px; /* Adjust spacing between the logo and the 3-bar menu */
         margin-bottom: 10px; /* Add space between toggler and nav items */
