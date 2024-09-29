@@ -2,114 +2,13 @@ body {
     font-family: Arial, sans-serif;
     line-height: 1.6;
     margin: 0;
-    padding: 0; /* No padding needed here */
-    background-color: #F4F4F4; /* Light gray background for content areas */
-}
-
-/* Global Colors */
-:root {
-    --primary-color: #92C141;  /* Your brand green */
-    --dark-bg-color: #343a40;  /* Dark gray for navbar and footer */
-    --hover-green: #B3E672;    /* Light green for hover effects */
-    --primary-text-color: #333;
-    --secondary-text-color: #555;
-    --light-green: #92C141;
-}
-
-/* Header (h1, h2) Styling */
-h1, h2 {
-    color: var(--primary-text-color);
-    margin-bottom: 20px;
-    font-weight: bold;
-}
-
-/* Navbar */
-.navbar {
-    background-color: var(--dark-bg-color);  /* Updated navbar background */
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-/* Navbar Brand (Logo) */
-.navbar-brand {
-    display: flex;
-    align-items: center;  /* Vertically aligns logo with other items */
-}
-
-.navbar-brand img {
-    max-height: 60px;  /* Set max height for the logo to maintain aspect ratio */
-    width: auto;       /* Width will auto-adjust to maintain aspect ratio */
-    margin-right: 15px;
-}
-
-/* Navbar Links */
-.navbar-nav {
-    display: flex;
-    align-items: center; /* Align navbar links vertically */
-    flex-direction: row; /* Ensure the links stay in a row on desktop */
-}
-
-.navbar-nav .nav-item {
-    margin-left: 15px;  /* Space between the nav items */
-}
-
-.navbar a.nav-link {
-    padding: 15px 10px;  /* Adjust padding for better alignment */
-    transition: color 0.3s ease;
-    color: white; /* Default link color */
-}
-
-.navbar a.nav-link:hover {
-    color: var(--primary-color);  /* Change link color on hover */
-}
-
-/* Align the 'Home' link properly */
-.navbar-brand {
-    line-height: inherit; /* Ensure the same line-height as other nav items */
-}
-
-/* Navbar Toggler for Mobile */
-.navbar-toggler {
-    border: none;
-}
-
-.navbar-toggler-icon {
-    width: 1.5em;
-    height: 1.5em;
-}
-
-/* Collapse behavior for mobile navbar */
-.collapse {
-    flex-basis: 100%; /* Make sure the navbar takes full width on mobile */
-    text-align: center; /* Center-align links in the dropdown */
-    background-color: var(--dark-bg-color); /* Ensure the background matches the navbar */
-    padding: 10px 0; /* Add padding for the dropdown area */
-}
-
-.collapse.show {
-    display: block; /* Ensure navbar shows up properly when toggled */
-}
-
-/* Add margin between Undo and Login/Logout buttons */
-.navbar .form-inline {
-    margin-right: 10px;  /* Space between Undo button and Login button */
-}
-
-.navbar a.btn {
-    padding: 8px 12px;
-    font-size: 1rem;
-    margin-left: 10px;  /* Add spacing between undo and login/logout buttons */
-}
-
-/* Footer */
-footer {
-    background-color: var(--dark-bg-color); /* Matches navbar */
-    color: white;
     padding: 20px;
-    text-align: center;
+    background-color: #f0f8ff;  /* Light blue background */
+}
+
+h1, h2 {
+    color: #333;
+    margin-bottom: 20px;
 }
 
 /* Table styling */
@@ -125,30 +24,52 @@ th, td {
     border-bottom: 1px solid #ddd;
 }
 
-/* Table header with sticky position */
+/* Updated table header style */
 th {
     background-color: #007bff;  /* Blue header background */
     color: white;  /* White text */
     font-weight: bold;
-    position: sticky;
+    position: sticky;  /* Sticky headers */
     top: 0;
     z-index: 1;
 }
 
+/* Zebra striping for table rows */
 tr:nth-child(even) {
     background-color: #f2f2f2;  /* Light gray background for every other row */
 }
 
+/* Hover effect for rows */
 tr:hover {
     background-color: #e0e0e0;  /* Darker gray on hover */
 }
 
+/* Table cell padding */
+td {
+    padding: 10px;
+}
+
+/* Improve table readability */
 .table-striped {
     border: 1px solid #ddd;
     border-radius: 4px;
 }
 
-/* Form Styling */
+/* Link styling */
+a {
+    color: #1a73e8;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Form group styling */
+.form-group {
+    margin-bottom: 15px;
+}
+
 .form-group label {
     display: block;
     margin-bottom: 5px;
@@ -162,77 +83,91 @@ tr:hover {
     border-radius: 4px;
 }
 
-/* Custom Select Styling */
+/* Improved Dropdown Styling */
 .custom-select {
     width: 100%;
     padding: 12px 20px;
     font-size: 1.2rem;
-    border: 2px solid #007bff;
+    border: 2px solid #007bff;  /* Blue border */
     border-radius: 6px;
     background-color: #fff;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    appearance: none;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);  /* Light shadow */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    appearance: none;  /* Remove default dropdown arrow */
     background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23007bff" d="M2 0L0 2h4z"/></svg>');
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 16px;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.custom-select:hover,
-.custom-select:focus {
-    border-color: #0056b3;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    outline: none;
+.custom-select:hover, .custom-select:focus {
+    border-color: #0056b3;  /* Darker blue on hover/focus */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);  /* Slightly stronger shadow on hover/focus */
+    outline: none;  /* Remove default outline */
 }
 
 /* Card Enhancements */
 .card {
     border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);  /* Adds a shadow */
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
 .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-5px);  /* Raises the card slightly on hover */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);  /* Bigger shadow on hover */
 }
 
+/* Card Title Styling */
 .card-title {
     font-size: 1.25rem;
-    color: var(--primary-color);  /* Your brand green */
+    color: #007bff;
     margin-bottom: 15px;
 }
 
-/* Card Text and Icons */
-.card-text {
-    font-size: 1rem;
-    color: var(--secondary-text-color);
-}
-
-.card-text strong {
-    font-size: 1.1rem;
-    color: var(--primary-color);
-}
-
+/* Medal Icon for cards */
 .fa-medal {
     color: #f0ad4e;  /* Gold medal color */
     margin-bottom: 10px;
 }
 
-/* Button Styling */
+/* Top 3 Wrestlers Section */
+.card-text {
+    font-size: 1rem;
+    color: #333;
+}
+
+.card-text strong {
+    font-size: 1.1rem;
+    color: #007bff;
+}
+
+.text-muted {
+    color: #888;  /* Lighter gray for Elo scores */
+}
+
+/* Divider for clean separation */
+hr {
+    border: 0;
+    height: 1px;
+    background: #ddd;
+    margin: 1.5rem 0;
+}
+
+/* Button Enhancements */
 button[type="submit"], .btn-primary {
-    background-color: var(--primary-color);
+    background-color: #28a745;  /* Green button */
     color: white;
     padding: 10px 15px;
     border: none;
     border-radius: 4px;
-    font-size: 1.1rem;
+    cursor: pointer;
+    font-size: 1.1rem;  /* Larger button text */
     transition: background-color 0.3s ease;
 }
 
 button[type="submit"]:hover, .btn-primary:hover {
-    background-color: var(--hover-green);
+    background-color: #218838;  /* Darker green on hover */
 }
 
 .btn-danger {
@@ -245,17 +180,21 @@ button[type="submit"]:hover, .btn-primary:hover {
 }
 
 .btn-danger:hover {
-    background-color: #c82333;
+    background-color: #c82333;  /* Darker red on hover */
 }
 
-/* Flash Message Styling */
+/* Flash message styling */
+.flashes {
+    margin-bottom: 20px;
+}
+
 .alert {
     padding: 10px;
     border-radius: 4px;
     margin-bottom: 10px;
 }
 
-/* Success, Error, and Info Flash Messages */
+/* Success and error flash messages */
 .alert-success {
     background-color: #d4edda;
     border-color: #c3e6cb;
@@ -274,17 +213,9 @@ button[type="submit"]:hover, .btn-primary:hover {
     color: #0c5460;
 }
 
-/* Divider for clean separation */
-hr {
-    border: 0;
-    height: 1px;
-    background: #ddd;
-    margin: 1.5rem 0;
-}
-
 /* Confirmation modal */
 .confirmation-modal {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
     position: fixed;
     top: 0;
     left: 0;
@@ -305,95 +236,105 @@ hr {
     text-align: center;
 }
 
+/* Dropdown form styling */
+.form-control {
+    display: inline-block;
+    width: auto;
+    padding: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
 /* Responsive Table for Mobile */
 .table-responsive {
     display: block;
     width: 100%;
-    overflow-x: auto;
+    overflow-x: auto;  /* Allows horizontal scrolling */
 }
 
-/* Mobile Styles */
 @media (max-width: 768px) {
     h1, h2 {
-        font-size: 1.5rem;
+        font-size: 1.5rem;  /* Smaller headings on mobile */
     }
 
     .btn {
         font-size: 1rem;  /* Smaller button text on mobile */
     }
-
-    /* Mobile Navbar Styles */
-    .navbar {
-        flex-direction: column; /* Stack navbar items vertically on mobile */
-    }
-
-    .navbar-nav {
-        flex-direction: column; /* Ensure links are displayed vertically */
-        width: 100%; /* Full width for mobile */
-        text-align: center; /* Center-align links */
-        padding: 0; /* Remove any padding */
-    }
-
-    .navbar-nav .nav-item {
-        margin: 0; /* Remove left margin */
-        padding: 12px 0; /* Adjust padding for spacing between items */
-        width: 100%; /* Ensure the items take up full width */
-    }
-
-    .navbar-nav .nav-link {
-        padding: 10px; /* Uniform padding for nav links */
-        text-align: center; /* Center the text in the dropdown */
-    }
-
-    /* Navbar Toggler for Mobile */
-    .navbar-toggler {
-        border: none;
-        margin-left: 10px; /* Add space between the logo and the menu */
-    }
-
-    .navbar-toggler-icon {
-        width: 1.5em;
-        height: 1.5em;
-    }
-
-    /* Collapse behavior for mobile navbar */
-    .collapse {
-        flex-basis: 100%; /* Ensure the navbar takes full width on mobile */
-        text-align: center; /* Ensure the dropdown menu aligns the text in the center */
-        background-color: var(--dark-bg-color); /* Ensure the background matches the nav bar */
-        padding: 10px 0; /* Add padding for the dropdown area */
-    }
-
-    .collapse.show {
-        display: block; /* Ensure the navbar shows up properly when toggled */
-    }
-
-    .navbar-toggler:focus, .navbar-toggler:hover {
-        outline: none; /* Remove the focus outline when toggling */
-    }
-
-    /* Ensure proper spacing around dropdown links */
-    .navbar-collapse .navbar-nav .nav-item {
-        margin-bottom: 10px; /* Space between items */
-    }
 }
 
-/* Footer */
-footer {
-    background-color: var(--dark-bg-color); /* Dark footer */
-    color: white;
-    padding: 20px;
-    text-align: center;
-}
-
-footer img {
-    max-height: 60px;  /* Ensure the footer logo maintains aspect ratio */
-    width: auto;       /* Auto width to maintain proper aspect ratio */
-    margin-bottom: 10px;
-}
-
-/* Additional spacing enhancements */
+/* Spacing Enhancements */
 .container {
     margin-top: 30px;
     margin-bottom: 30px;
+}
+
+h1, h2 {
+    margin-bottom: 20px;
+}
+
+.mt-4 {
+    margin-top: 20px;
+}
+
+.mb-4 {
+    margin-bottom: 20px;
+}
+
+/* Additional Enhancements */
+
+/* Centered Text for Buttons and Cards */
+.text-center {
+    text-align: center;
+}
+
+/* Shadow for the Navigation Bar */
+.navbar {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Typography Enhancements */
+h1 {
+    font-size: 2.5rem;
+    font-weight: bold;
+}
+
+h2 {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.card-text {
+    font-size: 1rem;
+    color: #555;
+}
+
+/* Navbar Enhancements */
+.navbar a.nav-link {
+    transition: color 0.3s ease;
+}
+
+.navbar a.nav-link:hover {
+    color: #28a745;  /* Change color on hover */
+}
+
+/* Animation Enhancements */
+
+/* Smooth Transition for Dropdown */
+.form-control {
+    transition: box-shadow 0.3s ease;
+}
+
+.form-control:focus {
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+/* Button Hover Animation */
+.btn-primary, .btn-danger {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover, .btn-danger:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
