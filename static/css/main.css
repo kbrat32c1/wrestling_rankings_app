@@ -2,14 +2,14 @@ body {
     font-family: Arial, sans-serif;
     line-height: 1.6;
     margin: 0;
-    padding: 20px;
-    background-color: #F4F4F4; /* Light gray background for a clean look */
+    padding: 0; /* No padding needed here */
+    background-color: #F4F4F4; /* Light gray background for content areas */
 }
 
 /* Global Colors */
 :root {
     --primary-color: #92C141;  /* Your brand green */
-    --dark-bg-color: #1C1C1C;  /* Dark background color */
+    --dark-bg-color: #343a40;  /* Dark gray for navbar and footer */
     --hover-green: #B3E672;    /* Light green for hover effects */
     --primary-text-color: #333;
     --secondary-text-color: #555;
@@ -25,12 +25,12 @@ h1, h2 {
 
 /* Navbar */
 .navbar {
-    background-color: var(--dark-bg-color);  /* Brand dark background for navbar */
+    background-color: var(--dark-bg-color);  /* Updated navbar background */
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     display: flex;
-    justify-content: space-between; /* Ensure alignment of content */
-    align-items: center; /* Vertically align navbar items */
-    flex-wrap: wrap; /* Ensure navbar wraps on smaller screens */
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
 /* Navbar Brand (Logo) */
@@ -84,6 +84,9 @@ h1, h2 {
 /* Collapse behavior for mobile navbar */
 .collapse {
     flex-basis: 100%; /* Make sure the navbar takes full width on mobile */
+    text-align: center; /* Center-align links in the dropdown */
+    background-color: var(--dark-bg-color); /* Ensure the background matches the navbar */
+    padding: 10px 0; /* Add padding for the dropdown area */
 }
 
 .collapse.show {
@@ -101,11 +104,12 @@ h1, h2 {
     margin-left: 10px;  /* Add spacing between undo and login/logout buttons */
 }
 
-/* Footer logo size adjustment */
-footer img {
-    max-height: 60px;  /* Ensure the footer logo maintains aspect ratio */
-    width: auto;       /* Auto width to maintain proper aspect ratio */
-    margin-bottom: 10px;
+/* Footer */
+footer {
+    background-color: var(--dark-bg-color); /* Matches navbar */
+    color: white;
+    padding: 20px;
+    text-align: center;
 }
 
 /* Table styling */
@@ -327,24 +331,50 @@ hr {
         flex-direction: column; /* Ensure links are displayed vertically */
         width: 100%; /* Full width for mobile */
         text-align: center; /* Center-align links */
+        padding: 0; /* Remove any padding */
     }
 
     .navbar-nav .nav-item {
-        margin-left: 15px; /* Space between nav items */
-    }
-    
-    .navbar-nav .nav-link {
-        padding-top: 18px; /* Adjust padding for alignment */
-        padding-bottom: 18px; /* Consistent padding for vertical alignment */
-    }
-    
-    .navbar-toggler {
-        margin-left: 10px; /* Adjust spacing between the logo and the 3-bar menu */
-        margin-bottom: 10px; /* Add space between toggler and nav items */
+        margin: 0; /* Remove left margin */
+        padding: 12px 0; /* Adjust padding for spacing between items */
+        width: 100%; /* Ensure the items take up full width */
     }
 
-    .navbar .form-inline {
-        margin-top: 10px; /* Add space between form and nav items */
+    .navbar-nav .nav-link {
+        padding: 10px; /* Uniform padding for nav links */
+        text-align: center; /* Center the text in the dropdown */
+    }
+
+    /* Navbar Toggler for Mobile */
+    .navbar-toggler {
+        border: none;
+        margin-left: 10px; /* Add space between the logo and the menu */
+    }
+
+    .navbar-toggler-icon {
+        width: 1.5em;
+        height: 1.5em;
+    }
+
+    /* Collapse behavior for mobile navbar */
+    .collapse {
+        flex-basis: 100%; /* Ensure the navbar takes full width on mobile */
+        text-align: center; /* Ensure the dropdown menu aligns the text in the center */
+        background-color: var(--dark-bg-color); /* Ensure the background matches the nav bar */
+        padding: 10px 0; /* Add padding for the dropdown area */
+    }
+
+    .collapse.show {
+        display: block; /* Ensure the navbar shows up properly when toggled */
+    }
+
+    .navbar-toggler:focus, .navbar-toggler:hover {
+        outline: none; /* Remove the focus outline when toggling */
+    }
+
+    /* Ensure proper spacing around dropdown links */
+    .navbar-collapse .navbar-nav .nav-item {
+        margin-bottom: 10px; /* Space between items */
     }
 }
 
@@ -367,4 +397,3 @@ footer img {
     margin-top: 30px;
     margin-bottom: 30px;
 }
-

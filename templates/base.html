@@ -14,7 +14,7 @@
 </head>
 <body>
     <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg" style="background-color: #343a40;"> <!-- Matches footer color -->
         <a class="navbar-brand" href="/">
             <img src="{{ url_for('static', filename='images/D3_LOGO_FULL_TAG_LIGHTgreen.png') }}" alt="D3 Wrestling" width="100">
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,17 +67,15 @@
     </nav>
 
     <!-- Main Content -->
-    <div class="container mt-4">
+    <div class="container mt-4" style="background-color: #F4F4F4;"> <!-- Light gray background for content -->
         {% block content %}{% endblock %}
     </div>
 
     <!-- Footer -->
-    <footer class="mt-5 py-3 bg-dark text-white text-center">
+    <footer class="mt-5 py-3" style="background-color: #343a40; color: white;"> <!-- Matches navbar color -->
         <img src="{{ url_for('static', filename='images/D3_LOGO_FULL_TAG_LIGHTgreen.png') }}" alt="D3 Wrestling" width="150">
         <p>&copy; 2024 D3 Wrestling. All rights reserved.</p>
         <p>Discover. Develop. Dedicate.</p>
-    </footer>
-    
     </footer>
 
     <!-- Bootstrap JS, Popper.js, and jQuery -->
