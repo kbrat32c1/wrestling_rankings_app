@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Statistical Leaders - NCAA Wrestling Rankings{% endblock %}
+
+{% block content %}
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Statistical Leaders</h1>
+
+        <!-- Leaderboard for Falls -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Fall Leaders</h5>
+                        <ul class="list-group">
+                            {% for wrestler, fall_count in fall_leaders %}
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span class="text-left">{{ loop.index }}. 
+                                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">
+                                        {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
+                                    </a>
+                                </span>
+                                <span class="badge badge-primary badge-pill">{{ fall_count }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard for Technical Falls -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Technical Fall Leaders</h5>
+                        <ul class="list-group">
+                            {% for wrestler, tech_fall_count in tech_fall_leaders %}
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span class="text-left">{{ loop.index }}. 
+                                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">
+                                        {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
+                                    </a>
+                                </span>
+                                <span class="badge badge-success badge-pill">{{ tech_fall_count }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard for Major Decisions -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Major Decision Leaders</h5>
+                        <ul class="list-group">
+                            {% for wrestler, major_decision_count in major_decision_leaders %}
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span class="text-left">{{ loop.index }}. 
+                                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">
+                                        {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
+                                    </a>
+                                </span>
+                                <span class="badge badge-warning badge-pill">{{ major_decision_count }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

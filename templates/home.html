@@ -10,7 +10,7 @@
 <div class="form-group mb-4">
     <label for="weightClassSelect" class="font-weight-bold">Jump to a weight class:</label>
     <select id="weightClassSelect" class="form-control custom-select" onchange="location = this.value;">
-        <option value="">Select a weight class</option>
+        <option value="" disabled selected>Select a weight class</option>
         {% for weight_class in weight_class_data %}
         <option value="{{ url_for('rankings', weight_class=weight_class.weight) }}">{{ weight_class.weight }} lbs</option>
         {% endfor %}

@@ -43,6 +43,7 @@ h1, h2 {
     max-height: 60px;  /* Set max height for the logo to maintain aspect ratio */
     width: auto;       /* Width will auto-adjust to maintain aspect ratio */
     margin-right: 15px;
+    vertical-align: middle;  /* Vertically aligns the logo with text */
 }
 
 /* Navbar Links */
@@ -52,23 +53,30 @@ h1, h2 {
     flex-direction: row; /* Ensure the links stay in a row on desktop */
 }
 
+/* Ensure consistent vertical alignment of navbar links */
+.navbar-nav .nav-link {
+    padding: 0 15px;  /* Adjust padding for better horizontal alignment */
+    line-height: 60px; /* Match the line-height to the logo's height */
+    display: inline-block; /* Ensure the link is displayed inline */
+    vertical-align: middle; /* Align vertically with the navbar */
+}
+
 .navbar-nav .nav-item {
     margin-left: 15px;  /* Space between the nav items */
 }
 
+/* Styling for navbar links */
 .navbar a.nav-link {
-    padding: 15px 10px;  /* Adjust padding for better alignment */
     transition: color 0.3s ease;
     color: white; /* Default link color */
+    height: 60px; /* Ensure it matches the logo's height */
+    display: flex;
+    align-items: center; /* Vertically align the link text */
 }
 
+/* Change link color on hover */
 .navbar a.nav-link:hover {
     color: var(--primary-color);  /* Change link color on hover */
-}
-
-/* Align the 'Home' link properly */
-.navbar-brand {
-    line-height: inherit; /* Ensure the same line-height as other nav items */
 }
 
 /* Navbar Toggler for Mobile */
@@ -162,7 +170,6 @@ tr:hover {
     border-radius: 4px;
 }
 
-/* Custom Select Styling */
 .custom-select {
     width: 100%;
     padding: 12px 20px;
@@ -174,10 +181,11 @@ tr:hover {
     appearance: none;
     background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23007bff" d="M2 0L0 2h4z"/></svg>');
     background-repeat: no-repeat;
-    background-position: right 10px center;
+    background-position: right 10px center; /* Adjust this for better positioning */
     background-size: 16px;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
+
 
 .custom-select:hover,
 .custom-select:focus {
@@ -312,6 +320,11 @@ hr {
     overflow-x: auto;
 }
 
+.rpi-highlight {
+    font-weight: bold;
+    color: var(--primary-color); /* Or any color you'd like */
+}
+
 /* Mobile Styles */
 @media (max-width: 768px) {
     h1, h2 {
@@ -396,4 +409,85 @@ footer img {
 .container {
     margin-top: 30px;
     margin-bottom: 30px;
+}
+
+/* Global font size adjustments */
+h1, h2, .card-title, .stat-value {
+    font-size: 1.5rem; /* Larger font for better readability */
+}
+
+/* Ensure high contrast for readability */
+h1, h2 {
+    color: var(--primary-text-color); /* Darker text */
+}
+
+.card-title {
+    color: var(--primary-color); /* Green branding for titles */
+}
+
+/* Ensure contrast in card body */
+.card-body {
+    background-color: white; /* Light background for readability */
+    color: var(--primary-text-color); /* Darker text */
+}
+
+/* Stat value emphasis */
+.stat-value {
+    font-weight: bold;
+    font-size: 1.4rem;
+}
+
+/* Accent important stats with color */
+.stat-highlight {
+    color: var(--primary-color);
+}
+
+/* Uniform card sizing */
+.card {
+    height: 100%; /* Ensures cards are the same height */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* Center content better inside cards */
+.card-body {
+    padding: 20px; /* Increase padding for a cleaner look */
+}
+
+.card-title {
+    margin-bottom: 15px; /* Add spacing below title */
+}
+
+/* Consistent icon size */
+.fa-medal {
+    font-size: 2.5rem; /* Large icon for visibility */
+}
+
+/* Responsive layout for cards */
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 20px; /* Add space between stacked cards */
+    }
+
+    /* Adjust padding for mobile */
+    .card-body {
+        padding: 15px;
+    }
+
+    /* Adjust navbar elements for mobile */
+    .navbar-nav .nav-item {
+        text-align: center; /* Center-align nav items on mobile */
+        margin-bottom: 10px; /* Space between items */
+    }
+
+    .navbar-brand img {
+        max-height: 50px; /* Smaller logo on mobile */
+    }
+
+    /* Larger buttons for touch-friendly design */
+    .btn {
+        font-size: 1.1rem;
+        padding: 10px 15px; /* Ensure buttons are easy to tap */
+    }
 }

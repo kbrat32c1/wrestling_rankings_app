@@ -7,37 +7,31 @@ import math
 import logging
 import csv
 import io
-import traceback
 import difflib
 from io import TextIOWrapper
 from datetime import timezone
-from flask_login import UserMixin
-from flask_login import LoginManager, login_user, logout_user, current_user, login_required
-from werkzeug.security import check_password_hash, generate_password_hash, check_password_hash
+from flask_login import UserMixin, LoginManager, login_user, logout_user, current_user, login_required
+from werkzeug.security import check_password_hash, generate_password_hash
+from sqlalchemy import event
+from flask_migrate import Migrate
+from flask import jsonify, request
+
 
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///wrestling.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Prevents caching of static files
-app.config['SECRET_KEY'] = 'your_secret_key_here'  # Required for flash messages
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['SECRET_KEY'] = 'your_secret_key_here'
 
+# Initialize database and migration tool
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-
-# Initialize the login manager
+# Initialize login manager
 login_manager = LoginManager()
 login_manager.init_app(app)
-
-# Redirect users to the login page if they aren't logged in
 login_manager.login_view = 'login'
-
-# Define the user loader for Flask-Login
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -80,6 +74,11 @@ D3_WRESTLING_SCHOOLS = [
     "Wisconsin - Whitewater", "Worcester Polytechnic", "York College (PA)"
 ]
 
+# User loader for Flask-Login
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 # Models
 class Wrestler(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -89,6 +88,7 @@ class Wrestler(db.Model):
     wins = db.Column(db.Integer, default=0)
     losses = db.Column(db.Integer, default=0)
     elo_rating = db.Column(db.Float, default=1500)
+    rpi = db.Column(db.Float, default=0)
 
     matches_as_wrestler1 = db.relationship('Match', foreign_keys='Match.wrestler1_id', backref='wrestler1', lazy='dynamic')
     matches_as_wrestler2 = db.relationship('Match', foreign_keys='Match.wrestler2_id', backref='wrestler2', lazy='dynamic')
@@ -96,6 +96,30 @@ class Wrestler(db.Model):
     @property
     def total_matches(self):
         return self.wins + self.losses
+
+    @property
+    def hybrid_score(self):
+        if self.elo_rating is not None and self.rpi is not None:
+            return (0.5 * self.elo_rating) + (0.5 * self.rpi)
+        return None
+
+    @property
+    def falls(self):
+        """ Calculate total number of falls for the wrestler. """
+        return self.matches_as_wrestler1.filter_by(win_type='Fall').count() + \
+               self.matches_as_wrestler2.filter_by(win_type='Fall').count()
+
+    @property
+    def tech_falls(self):
+        """ Calculate total number of technical falls for the wrestler. """
+        return self.matches_as_wrestler1.filter_by(win_type='Technical Fall').count() + \
+               self.matches_as_wrestler2.filter_by(win_type='Technical Fall').count()
+
+    @property
+    def major_decisions(self):
+        """ Calculate total number of major decisions for the wrestler. """
+        return self.matches_as_wrestler1.filter_by(win_type='Major Decision').count() + \
+               self.matches_as_wrestler2.filter_by(win_type='Major Decision').count()
 
     def to_dict(self):
         return {
@@ -106,29 +130,111 @@ class Wrestler(db.Model):
             'wins': self.wins,
             'losses': self.losses,
             'elo_rating': self.elo_rating,
-            'total_matches': self.total_matches
+            'RPI': self.rpi,
+            'hybrid': self.hybrid_score,
+            'total_matches': self.total_matches,
+            'falls': self.falls,  # Dynamically calculated
+            'tech_falls': self.tech_falls,  # Dynamically calculated
+            'major_decisions': self.major_decisions  # Dynamically calculated
         }
+
 
 class Match(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.DateTime, nullable=False)
+    date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Wrestlers involved in the match
     wrestler1_id = db.Column(db.Integer, db.ForeignKey('wrestler.id'), nullable=False)
     wrestler2_id = db.Column(db.Integer, db.ForeignKey('wrestler.id'), nullable=False)
+    
+    # Winner of the match
     winner_id = db.Column(db.Integer, db.ForeignKey('wrestler.id'), nullable=False)
-    win_type = db.Column(db.String(20), nullable=False)
-
     winner = db.relationship('Wrestler', foreign_keys=[winner_id], backref='matches_won')
+    
+    # Type of win (fall, technical fall, major decision, decision, etc.)
+    win_type = db.Column(db.String(20), nullable=False)  # Fall, Technical Fall, Major Decision, Decision
+    
+    # Score tracking for the wrestlers
+    wrestler1_score = db.Column(db.Integer, nullable=False, default=0)
+    wrestler2_score = db.Column(db.Integer, nullable=False, default=0)
+    
+    # Time of match for tracking falls and technical falls
+    match_time = db.Column(db.Time, nullable=True)  # Time the fall or technical fall occurred (if applicable)
+
+    # Boolean flags for match outcomes
+    fall = db.Column(db.Boolean, default=False)
+    technical_fall = db.Column(db.Boolean, default=False)
+    major_decision = db.Column(db.Boolean, default=False)
+    decision = db.Column(db.Boolean, default=False)
+
+    def calculate_win_type(self):
+        """
+        Automatically calculate the win type (fall, technical fall, major decision, or decision)
+        based on the score and set the relevant fields.
+        """
+        # If fall or technical fall flag is manually set, prioritize them
+        if self.fall:
+            self.win_type = 'Fall'
+        elif self.technical_fall:
+            self.win_type = 'Technical Fall'
+        else:
+            # Calculate win type based on score difference
+            score_diff = abs(self.wrestler1_score - self.wrestler2_score)
+            if score_diff >= 15:
+                self.win_type = 'Technical Fall'
+                self.technical_fall = True
+            elif 8 <= score_diff < 15:
+                self.win_type = 'Major Decision'
+                self.major_decision = True
+            else:
+                self.win_type = 'Decision'
+                self.decision = True
+
+        # Ensure boolean flags match the win type
+        self.fall = self.win_type == 'Fall'
+        self.technical_fall = self.win_type == 'Technical Fall'
+        self.major_decision = self.win_type == 'Major Decision'
+        self.decision = self.win_type == 'Decision'
 
     def to_dict(self):
+        """
+        Convert the Match object to a dictionary for easy serialization.
+        """
         return {
             'id': self.id,
-            'date': self.date.strftime('%Y-%m-%d'),  # Format as a string for easy display
+            'date': self.date.strftime('%Y-%m-%d'),
             'wrestler1_id': self.wrestler1_id,
             'wrestler2_id': self.wrestler2_id,
             'winner_id': self.winner_id,
-            'win_type': self.win_type
+            'win_type': self.win_type,
+            'wrestler1_score': self.wrestler1_score,
+            'wrestler2_score': self.wrestler2_score,
+            'match_time': self.match_time.strftime('%M:%S') if self.match_time else None,
+            'fall': self.fall,
+            'technical_fall': self.technical_fall,
+            'major_decision': self.major_decision,
+            'decision': self.decision
         }
 
+# SQLAlchemy event listeners
+@event.listens_for(Match, 'before_insert')
+def before_insert_listener(mapper, connection, target):
+    target.calculate_win_type()
+
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=False)  # Keep email
+    password = db.Column(db.String(200), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)  # Add admin functionality
+
+    def set_password(self, password):
+        self.password = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password, password)
+    
 
 # Elo rating functions
 def expected_score(rating_a, rating_b):
@@ -138,202 +244,118 @@ def update_elo(rating, expected, actual, k_factor=32):
     return rating + k_factor * (actual - expected)
 
 def recalculate_elo(wrestler):
-    """
-    Recalculate the Elo rating for the given wrestler based on their match history.
-    """
     logger.info(f"Recalculating Elo for {wrestler.name}")
-    
-    # Reset the wrestler's Elo rating to the base value of 1500
     wrestler.elo_rating = 1500
-
-    # Fetch all matches where the wrestler was either wrestler1 or wrestler2
     matches = list(wrestler.matches_as_wrestler1) + list(wrestler.matches_as_wrestler2)
 
-    # If no matches, return early
     if not matches:
         logger.info(f"No matches found for {wrestler.name}. Elo remains {wrestler.elo_rating}")
         return
 
-    # Convert any timezone-aware datetime to naive datetime (if necessary)
-    for match in matches:
-        if match.date.tzinfo is not None:
-            match.date = match.date.astimezone(timezone.utc).replace(tzinfo=None)
-
-    # Sort matches by date to recalculate Elo in chronological order
-    matches.sort(key=lambda x: x.date)
-
-    # Recalculate Elo for each match
     for match in matches:
         opponent = match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
         expected = expected_score(wrestler.elo_rating, opponent.elo_rating)
         actual = 1 if match.winner_id == wrestler.id else 0
-
-        # Update Elo rating based on match result
         wrestler.elo_rating = update_elo(wrestler.elo_rating, expected, actual)
-
         logger.info(f"Match on {match.date} against {opponent.name}: expected {expected:.4f}, actual {actual}. Updated Elo: {wrestler.elo_rating:.2f}")
 
-    # Log the final recalculated Elo rating
-    logger.info(f"Final Elo for {wrestler.name}: {wrestler.elo_rating}")
     db.session.commit()
 
+# RPI calculation functions
+MIN_MATCHES = 3
 
-# Flexible date parsing function
-def parse_date(date_str):
-    date_str = date_str.strip()  # Strip any extra spaces
-    date_formats = ['%m/%d/%Y', '%m/%d/%y', '%Y-%m-%d']  # List of possible date formats
+def calculate_rpi(wrestler):
+    if wrestler.total_matches < MIN_MATCHES:
+        logger.info(f"{wrestler.name} has fewer than {MIN_MATCHES} matches. RPI not calculated.")
+        return 0, 0, 0, 0
 
-    for fmt in date_formats:
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
-    raise ValueError(f"Date '{date_str}' is not in a recognized format. Supported formats: {date_formats}")
+    win_percentage = wrestler.wins / max(wrestler.total_matches, 1)
+    matches_as_wrestler1 = wrestler.matches_as_wrestler1.all()
+    matches_as_wrestler2 = wrestler.matches_as_wrestler2.all()
 
-# Helper function for logging skipped matches
-def log_skipped_match(wrestler1, wrestler2, date, reason):
-    app.logger.warning(f"Skipping match between {wrestler1} and {wrestler2} on {date}: {reason}")
+    opponents = set(match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
+                    for match in matches_as_wrestler1 + matches_as_wrestler2)
 
-# Enhanced function for getting or creating a wrestler with fuzzy matching
-def get_or_create_wrestler(name, school, weight_class):
-    name = name.strip().title()  # Normalize name (capitalize properly, remove extra spaces)
-    school = school.strip().title()  # Normalize school name
+    opponent_win_percentage = (sum(opponent.wins / max(opponent.total_matches, 1) for opponent in opponents) / len(opponents)) if opponents else 0
+
+    opponent_opponents = set()
+    for opponent in opponents:
+        opponent_opponents.update(match.wrestler2 if match.wrestler1_id == opponent.id else match.wrestler1
+                                  for match in opponent.matches_as_wrestler1.all() + opponent.matches_as_wrestler2.all())
+
+    opponent_opponent_win_percentage = (sum(opp_op.wins / max(opp_op.total_matches, 1) for opp_op in opponent_opponents) / len(opponent_opponents)) if opponent_opponents else 0
+
+    rpi = 0.25 * win_percentage + 0.5 * opponent_win_percentage + 0.25 * opponent_opponent_win_percentage
+
+    logger.info(f"RPI for {wrestler.name}: {rpi:.3f}")
+    return rpi, win_percentage, opponent_win_percentage, opponent_opponent_win_percentage
+
+def recalculate_rpi(wrestler):
+    rpi, win_percentage, opponent_win_percentage, opponent_opponent_win_percentage = calculate_rpi(wrestler)
+    wrestler.rpi = rpi
+    db.session.commit()
+
+    logger.info(f"RPI recalculated for {wrestler.name}: {rpi:.3f}")
+    return rpi
+
+def recalculate_hybrid(wrestler):
+    """
+    Recalculate the hybrid score for the given wrestler.
+    The hybrid score is a combination of Elo rating and RPI.
+    It is calculated as: hybrid_score = 0.5 * Elo rating + 0.5 * RPI.
+    This function does not need to set the hybrid_score directly as it is a property.
+    """
+    if wrestler.elo_rating is not None and wrestler.rpi is not None:
+        hybrid_score = (0.5 * wrestler.elo_rating) + (0.5 * wrestler.rpi)
+        logger.info(f"{wrestler.name}: Hybrid Score recalculated to {hybrid_score}")
+    else:
+        logger.info(f"{wrestler.name}: Hybrid Score cannot be calculated due to missing values")
     
-    # Attempt to find a wrestler with close match to prevent duplicates from small errors
-    wrestler = Wrestler.query.filter(
-        db.func.lower(Wrestler.name) == name.lower(),
-        db.func.lower(Wrestler.school) == school.lower(),
-        Wrestler.weight_class == int(weight_class)
-    ).first()
+    db.session.commit()
 
-    if not wrestler:
-        # If no exact match, log the missing wrestler and create a new one
-        app.logger.info(f"Creating new wrestler: {name} from {school}")
-        wrestler = Wrestler(name=name, school=school, weight_class=int(weight_class), wins=0, losses=0, elo_rating=1500)
-        db.session.add(wrestler)
-        db.session.commit()
-    return wrestler
+# Helper function to calculate Dominance Score
+def calculate_dominance_score(wrestler):
+    matches = wrestler.matches_as_wrestler1.all() + wrestler.matches_as_wrestler2.all()
+    
+    # Assign points based on the win type
+    total_score = 0
+    match_count = 0
 
-# Function to validate and process CSV
-def validate_and_process_csv(file):
-    try:
-        csv_file = TextIOWrapper(file, encoding='utf-8')
-        csv_reader = csv.DictReader(csv_file)
+    for match in matches:
+        if match.winner_id == wrestler.id:
+            if match.win_type == 'Fall':
+                total_score += 6
+            elif match.win_type == 'Technical Fall':
+                total_score += 5
+            elif match.win_type == 'Major Decision':
+                total_score += 4
+            elif match.win_type == 'Decision':
+                total_score += 3
+            # Other win types can be added here
+            match_count += 1
+        else:
+            # If the wrestler lost, they get 0 points
+            match_count += 1  # Still count the match even if they lost
 
-        required_headers = ['Date', 'Wrestler1', 'School1', 'Wrestler2', 'School2', 'WeightClass', 'Winner', 'WinType']
-        
-        # Ensure the file has the correct headers
-        if set(required_headers).difference(set(csv_reader.fieldnames)):
-            missing_headers = list(set(required_headers).difference(set(csv_reader.fieldnames)))
-            flash(f"Missing required columns in CSV: {', '.join(missing_headers)}", 'error')
-            return False
+    if match_count == 0:
+        return 0  # Avoid division by zero if the wrestler has no matches
 
-        # Process rows one by one to handle large CSVs efficiently
-        for row_num, row in enumerate(csv_reader, start=1):
-            try:
-                wrestler1_name = row['Wrestler1'].strip().title()
-                school1_name = row['School1'].strip().title()
-                wrestler2_name = row['Wrestler2'].strip().title()
-                school2_name = row['School2'].strip().title()
-                weight_class = row['WeightClass'].strip()
-                winner_name = row['Winner'].strip().title()
-                win_type = row['WinType'].strip()
+    # Calculate the average dominance score across all matches
+    return total_score / match_count
 
-                # Validate weight class
-                if not weight_class.isdigit() or int(weight_class) not in WEIGHT_CLASSES:
-                    flash(f"Invalid weight class at row {row_num}: {weight_class}", 'error')
-                    continue
+def get_stat_leaders(stat_column, limit=10):
+    """
+    Fetch top wrestlers based on a specific stat (falls, tech falls, major decisions)
+    and return their rank and count of matches with that stat.
+    """
+    query = db.session.query(Wrestler, db.func.count(Match.id).label(f'{stat_column}_count'))\
+        .join(Match, db.or_(Wrestler.id == Match.wrestler1_id, Wrestler.id == Match.wrestler2_id))\
+        .filter(Match.win_type == stat_column, Wrestler.id == Match.winner_id)\
+        .group_by(Wrestler.id)\
+        .order_by(db.func.count(Match.id).desc())\
+        .all()
 
-                # Parse the date using the flexible date parsing function
-                try:
-                    raw_date = row['Date']
-                    match_date = parse_date(raw_date)
-                except ValueError as e:
-                    flash(f"Invalid date format at row {row_num}: {raw_date} ({str(e)})", 'error')
-                    continue
-
-                # Validate other fields
-                if not wrestler1_name or not school1_name or not wrestler2_name or not school2_name or not winner_name or not win_type:
-                    flash(f"Missing required fields at row {row_num}", 'error')
-                    continue
-
-                if wrestler1_name == wrestler2_name and school1_name == school2_name:
-                    flash(f"Invalid match (self-match) at row {row_num}", 'error')
-                    continue
-
-                # Get or create wrestlers
-                wrestler1 = get_or_create_wrestler(wrestler1_name, school1_name, weight_class)
-                wrestler2 = get_or_create_wrestler(wrestler2_name, school2_name, weight_class)
-
-                # Validate winner
-                if winner_name not in [wrestler1.name, wrestler2.name]:
-                    flash(f"Winner does not match wrestler1 or wrestler2 at row {row_num}", 'error')
-                    continue
-
-                # Check for existing match
-                existing_match = Match.query.filter_by(
-                    wrestler1_id=wrestler1.id,
-                    wrestler2_id=wrestler2.id,
-                    date=match_date
-                ).first()
-
-                if existing_match:
-                    flash(f"Duplicate match detected: {wrestler1.name} vs {wrestler2.name} on {match_date}", 'info')
-                    continue  # Skip if the match already exists
-
-                # Create and add new match
-                winner = wrestler1 if winner_name == wrestler1.name else wrestler2
-                new_match = Match(
-                    date=match_date,
-                    wrestler1_id=wrestler1.id,
-                    wrestler2_id=wrestler2.id,
-                    winner_id=winner.id,
-                    win_type=win_type
-                )
-                db.session.add(new_match)
-
-                # Update win/loss records
-                if winner == wrestler1:
-                    wrestler1.wins += 1
-                    wrestler2.losses += 1
-                else:
-                    wrestler2.wins += 1
-                    wrestler1.losses += 1
-
-                # Recalculate Elo ratings for both wrestlers
-                recalculate_elo(wrestler1)
-                recalculate_elo(wrestler2)
-
-                # Commit changes after processing each row
-                db.session.commit()
-
-            except Exception as e:
-                flash(f"Error processing row {row_num}: {str(e)}", 'error')
-                db.session.rollback()
-                continue
-
-        flash(f"CSV file processed successfully!", 'success')
-        return True
-
-    except Exception as e:
-        flash(f"An error occurred during CSV validation: {str(e)}", 'error')
-        return False
-
-
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
-
-    def set_password(self, password):
-        """Hashes the password and stores it."""
-        self.password = generate_password_hash(password, method='pbkdf2:sha256')
-
-    def check_password(self, password):
-        """Checks the password against the hashed value in the database."""
-        return check_password_hash(self.password, password)
-
+    return query[:limit]  # Limit results to top wrestlers
 
 
 # Utility functions and decorators (admin_required goes here)
@@ -344,7 +366,6 @@ def admin_required(f):
             abort(403)  # Forbidden
         return f(*args, **kwargs)
     return decorated_function
-
 
 # Routes
 @app.route('/')
@@ -361,50 +382,176 @@ def home():
 
 @app.route('/rankings/<int:weight_class>')
 def rankings(weight_class):
-    if weight_class not in WEIGHT_CLASSES:
-        flash('Invalid weight class', 'error')
-        return redirect(url_for('home'))
-    
+    sort_by = request.args.get('sort_by', 'elo')  # Default to Elo sorting
+
+    # Fetch all wrestlers for the given weight class
     wrestlers = Wrestler.query.filter_by(weight_class=weight_class).all()
-    
-    # Sort wrestlers first by whether they have matches, then by Elo rating
-    ranked_wrestlers = sorted(wrestlers, key=lambda w: (w.total_matches > 0, w.elo_rating), reverse=True)
-    
-    return render_template('rankings.html', weight_class=weight_class, wrestlers=ranked_wrestlers)
+
+    # Calculate Dominance Score for each wrestler
+    for wrestler in wrestlers:
+        matches_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler.id).all()
+        matches_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler.id).all()
+
+        # Combine the matches
+        matches = matches_wrestler1 + matches_wrestler2
+        total_points = 0
+        total_matches = len(matches)
+
+        # Calculate the dominance score for the wrestler
+        for match in matches:
+            if match.winner_id == wrestler.id:
+                if match.win_type == 'Fall':
+                    total_points += 6
+                elif match.win_type == 'Technical Fall':
+                    total_points += 5
+                elif match.win_type == 'Major Decision':
+                    total_points += 4
+                elif match.win_type == 'Decision':
+                    total_points += 3
+
+        # Avoid division by zero when calculating the dominance score
+        wrestler.dominance_score = total_points / total_matches if total_matches > 0 else 0
+
+    # Handle sorting based on the requested criteria
+    if sort_by == 'rpi':
+        wrestlers = sorted(wrestlers, key=lambda w: (w.rpi is None, w.rpi), reverse=True)
+    elif sort_by == 'hybrid':
+        wrestlers = sorted(wrestlers, key=lambda w: (w.hybrid_score is None, w.hybrid_score), reverse=True)
+    elif sort_by == 'dominance':
+        wrestlers = sorted(wrestlers, key=lambda w: (w.dominance_score is None, w.dominance_score), reverse=True)
+    else:
+        wrestlers = sorted(wrestlers, key=lambda w: (w.elo_rating is None, w.elo_rating), reverse=True)
+
+
+    # Calculate win percentage for each wrestler
+    for wrestler in wrestlers:
+        wrestler.win_percentage = (wrestler.wins / max(wrestler.total_matches, 1)) * 100  # Convert to percentage
+
+    # Render the rankings page with all necessary data
+    return render_template('rankings.html', 
+                           weight_class=weight_class, 
+                           wrestlers=wrestlers, 
+                           sort_by=sort_by)
 
 
 @app.route('/wrestler/<int:wrestler_id>')
 def wrestler_detail(wrestler_id):
+    # Fetch the wrestler by ID
     wrestler = Wrestler.query.get_or_404(wrestler_id)
-    
-    # Calculate wins and losses dynamically based on matches
+
+    # Query for all wrestlers in the same weight class
+    all_wrestlers_in_weight_class = Wrestler.query.filter_by(weight_class=wrestler.weight_class).all()
+
+    # Sort wrestlers by Elo, RPI, Hybrid, and Dominance Score and determine the ranks
+    sorted_by_elo = sorted(all_wrestlers_in_weight_class, key=lambda w: w.elo_rating, reverse=True)
+    sorted_by_rpi = sorted(all_wrestlers_in_weight_class, key=lambda w: w.rpi if w.rpi else 0, reverse=True)
+    sorted_by_hybrid = sorted(all_wrestlers_in_weight_class, key=lambda w: w.hybrid_score if w.hybrid_score else 0, reverse=True)
+    sorted_by_dominance = sorted(all_wrestlers_in_weight_class, key=lambda w: calculate_dominance_score(w), reverse=True)
+
+    # Find the ranks of the current wrestler
+    elo_rank = sorted_by_elo.index(wrestler) + 1
+    rpi_rank = sorted_by_rpi.index(wrestler) + 1
+    hybrid_rank = sorted_by_hybrid.index(wrestler) + 1
+    dominance_rank = sorted_by_dominance.index(wrestler) + 1
+
+    # Get stats and ranks using the same logic as the leaderboards
+    fall_leaders = get_stat_leaders('Fall')
+    tech_fall_leaders = get_stat_leaders('Technical Fall')
+    major_decision_leaders = get_stat_leaders('Major Decision')
+
+    # Calculate the wrestler's rank for each stat (or None if not ranked)
+    fall_rank = next((rank for rank, (wrestler_obj, _) in enumerate(fall_leaders, 1) if wrestler_obj.id == wrestler_id), None)
+    tech_fall_rank = next((rank for rank, (wrestler_obj, _) in enumerate(tech_fall_leaders, 1) if wrestler_obj.id == wrestler_id), None)
+    major_decision_rank = next((rank for rank, (wrestler_obj, _) in enumerate(major_decision_leaders, 1) if wrestler_obj.id == wrestler_id), None)
+
+    # Get the number of falls, technical falls, and major decisions for the wrestler
+    falls = next((count for wrestler_obj, count in fall_leaders if wrestler_obj.id == wrestler_id), 0)
+    tech_falls = next((count for wrestler_obj, count in tech_fall_leaders if wrestler_obj.id == wrestler_id), 0)
+    major_decisions = next((count for wrestler_obj, count in major_decision_leaders if wrestler_obj.id == wrestler_id), 0)
+
+    # Log the values for troubleshooting
+    app.logger.info(f"Wrestler {wrestler.name}: Falls = {falls}, Fall Rank = {fall_rank}")
+    app.logger.info(f"Wrestler {wrestler.name}: Tech Falls = {tech_falls}, Tech Fall Rank = {tech_fall_rank}")
+    app.logger.info(f"Wrestler {wrestler.name}: Major Decisions = {major_decisions}, Major Decision Rank = {major_decision_rank}")
+
+    # Query for matches where the wrestler is wrestler1 or wrestler2
     matches_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler_id).all()
     matches_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler_id).all()
-    
-    # Wins are matches where this wrestler is the winner
-    wins = len([match for match in matches_wrestler1 if match.winner_id == wrestler_id]) + \
-           len([match for match in matches_wrestler2 if match.winner_id == wrestler_id])
-    
-    # Losses are matches where this wrestler is the loser
-    losses = len([match for match in matches_wrestler1 if match.winner_id != wrestler_id]) + \
-             len([match for match in matches_wrestler2 if match.winner_id != wrestler_id])
-    
-    # Get match details for display
+
+    # Combine the matches into one list
     matches = matches_wrestler1 + matches_wrestler2
+
+    # Initialize variables for tracking wins, losses, and dominance score
+    wins = 0
+    losses = 0
+    total_points = 0
+    total_matches = len(matches)  # Total number of matches
+
+    # Prepare list for match details to be rendered
     match_details = []
+
+    # Loop through each match to calculate wins, losses, and dominance score
     for match in matches:
-        opponent = match.wrestler2 if match.wrestler1_id == wrestler_id else match.wrestler1
-        result = "Win" if match.winner_id == wrestler_id else "Loss"
+        # Identify the opponent
+        if match.wrestler1_id == wrestler_id:
+            opponent = match.wrestler2
+            is_winner = match.winner_id == wrestler_id
+        else:
+            opponent = match.wrestler1
+            is_winner = match.winner_id == wrestler_id
+
+        # Count wins and losses
+        if is_winner:
+            wins += 1
+        else:
+            losses += 1
+
+        # Calculate points for the dominance score based on win type (Fall, Technical Fall, Major Decision, Decision)
+        if is_winner:
+            if match.win_type == 'Fall':
+                total_points += 6
+            elif match.win_type == 'Technical Fall':
+                total_points += 5
+            elif match.win_type == 'Major Decision':
+                total_points += 4
+            elif match.win_type == 'Decision':
+                total_points += 3
+
+        # Collect match details for display in the template
         match_details.append({
             'id': match.id,
             'date': match.date,
             'opponent': opponent,
-            'result': result,
-            'win_type': match.win_type
+            'result': 'Win' if is_winner else 'Loss',
+            'win_type': match.win_type,
+            'wrestler1_score': match.wrestler1_score,
+            'wrestler2_score': match.wrestler2_score,
+            'match_time': match.match_time if match.match_time else "N/A"
         })
 
-    # Render the wrestler profile, displaying the dynamic win/loss record
-    return render_template('wrestler_detail.html', wrestler=wrestler, matches=match_details, wins=wins, losses=losses)
+    # Avoid division by zero when calculating the dominance score
+    if total_matches > 0:
+        dominance_score = total_points / total_matches
+    else:
+        dominance_score = 0
+
+    # Render the wrestler profile template with all the calculated data, including rankings and individual stats
+    return render_template('wrestler_detail.html', 
+                           wrestler=wrestler, 
+                           matches=match_details, 
+                           wins=wins, 
+                           losses=losses, 
+                           dominance_score=dominance_score,
+                           elo_rank=elo_rank,
+                           rpi_rank=rpi_rank,
+                           hybrid_rank=hybrid_rank,
+                           dominance_rank=dominance_rank,
+                           falls=falls,
+                           fall_rank=fall_rank,
+                           tech_falls=tech_falls,
+                           tech_fall_rank=tech_fall_rank,
+                           major_decisions=major_decisions,
+                           major_decision_rank=major_decision_rank)
 
 
 @app.route('/add_wrestler', methods=['GET', 'POST'])
@@ -509,6 +656,17 @@ def add_match():
             recalculate_elo(wrestler1)
             recalculate_elo(wrestler2)
 
+            # recalculate RPI
+            recalculate_rpi(wrestler1)
+            recalculate_rpi(wrestler2)
+
+            # recalculate Hybrid
+            recalculate_hybrid(wrestler1)
+            recalculate_hybrid(wrestler2)      
+
+            # Commit the RPI updates
+            db.session.commit()
+
             # Flash success message and redirect to the homepage
             flash(f'Match added: {wrestler1.name} vs {wrestler2.name}', 'success')
             return redirect(url_for('home'))
@@ -572,6 +730,17 @@ def edit_match(match_id):
             recalculate_elo(wrestler1)
             recalculate_elo(wrestler2)
 
+            # recalculate RPI
+            recalculate_rpi(wrestler1)
+            recalculate_rpi(wrestler2)
+
+            # recalculate Hybrid
+            recalculate_hybrid(wrestler1)
+            recalculate_hybrid(wrestler2) 
+
+            # Commit the RPI updates
+            db.session.commit()
+
             flash('Match has been updated.', 'success')
             logger.info(f"Updated match: {wrestler1.name} vs {wrestler2.name}, Winner: {new_winner.name}")
             return redirect(url_for('wrestler_detail', wrestler_id=match.wrestler1_id))
@@ -601,6 +770,22 @@ def edit_wrestler(wrestler_id):
             return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS)
         
         db.session.commit()
+
+        # Recalculate RPI for the wrestler in case any match-related data is affected
+        # Recalculate Elo ratings for both wrestlers
+        recalculate_elo(wrestler1)
+        recalculate_elo(wrestler2)
+
+        # recalculate RPI
+        recalculate_rpi(wrestler1)
+        recalculate_rpi(wrestler2)
+
+        # recalculate Hybrid
+        recalculate_hybrid(wrestler1)
+        recalculate_hybrid(wrestler2) 
+        
+        db.session.commit()
+
         flash(f'Wrestler {wrestler.name} has been updated.', 'success')
         logger.info(f"Updated wrestler: {wrestler.name}, School: {wrestler.school}, Weight Class: {wrestler.weight_class}")
         return redirect(url_for('wrestler_detail', wrestler_id=wrestler.id))
@@ -631,7 +816,17 @@ def delete_wrestler(wrestler_id):
             opponent.losses -= 1
         else:
             opponent.wins -= 1
-        recalculate_elo(opponent)  # Recalculate Elo for opponent after match deletion
+        # Recalculate Elo ratings for both wrestlers
+            recalculate_elo(wrestler1)
+            recalculate_elo(wrestler2)
+
+            # recalculate RPI
+            recalculate_rpi(wrestler1)
+            recalculate_rpi(wrestler2)
+
+            # recalculate Hybrid
+            recalculate_hybrid(wrestler1)
+            recalculate_hybrid(wrestler2) 
         db.session.delete(match)
 
     db.session.delete(wrestler)
@@ -639,7 +834,6 @@ def delete_wrestler(wrestler_id):
 
     flash(f'Wrestler {wrestler.name} and all their matches have been deleted.', 'success')
     return redirect(url_for('home'))
-
 
 
 @app.route('/delete_match/<int:match_id>', methods=['POST'])
@@ -658,15 +852,29 @@ def delete_match(match_id):
         wrestler2.wins -= 1
         wrestler1.losses -= 1
 
+    # Delete the match from the database
     db.session.delete(match)
-    db.session.commit()
 
-    # Recalculate Elo ratings for both wrestlers after match deletion
+    # Recalculate Elo ratings, RPI, and Hybrid for both wrestlers
     recalculate_elo(wrestler1)
     recalculate_elo(wrestler2)
+    
+    recalculate_rpi(wrestler1)
+    recalculate_rpi(wrestler2)
+    
+    recalculate_hybrid(wrestler1)
+    recalculate_hybrid(wrestler2)
+
+    # Commit all changes at once to the database
+    db.session.commit()
 
     flash(f'Match between {wrestler1.name} and {wrestler2.name} has been deleted.', 'success')
-    return redirect(url_for('wrestler_detail', wrestler_id=wrestler1.id))
+
+    # Get wrestler_id from the query string parameter
+    wrestler_id = request.args.get('wrestler_id')
+
+    # Redirect back to the wrestler's profile
+    return redirect(url_for('wrestler_detail', wrestler_id=wrestler_id))
 
 
 @app.route('/undo', methods=['POST'])
@@ -707,21 +915,62 @@ def undo():
 
         db.session.commit()
 
-        # Recalculate Elo for restored wrestler
+        # Recalculate Elo and RPI for restored wrestler
         recalculate_elo(restored_wrestler)
+        restored_wrestler.rpi = calculate_rpi(restored_wrestler)
+        db.session.commit()
 
-        # Also recalculate Elo for opponents of the restored matches
+        # Also recalculate Elo and RPI for opponents of the restored matches
         for match_data in last_action.get('matches', []):
             opponent_id = match_data['wrestler2_id'] if match_data['wrestler1_id'] == restored_wrestler.id else match_data['wrestler1_id']
             opponent = Wrestler.query.get(opponent_id)
             recalculate_elo(opponent)
+            opponent.rpi = calculate_rpi(opponent)
+            db.session.commit()
 
         flash(f'Wrestler {restored_wrestler.name} and their matches have been restored.', 'success')
 
     session.pop('last_action', None)
     return redirect(url_for('home'))
 
+# Flexible date parsing function
+def parse_date(date_str):
+    date_str = date_str.strip()  # Strip any extra spaces
+    date_formats = ['%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y']  # List of possible date formats
+
+    for fmt in date_formats:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"Date '{date_str}' is not in a recognized format. Supported formats: {date_formats}")
+
+def get_or_create_wrestler(name, school, weight_class):
+    name = name.strip().title()  # Normalize name (capitalize properly, remove extra spaces)
+    school = school.strip().title()  # Normalize school name
+    
+    # Attempt to find a wrestler with a close match to prevent duplicates from small errors
+    wrestler = Wrestler.query.filter(
+        db.func.lower(Wrestler.name) == name.lower(),
+        db.func.lower(Wrestler.school) == school.lower(),
+        Wrestler.weight_class == int(weight_class)
+    ).first()
+
+    if not wrestler:
+        # If no exact match, log the missing wrestler and create a new one
+        app.logger.info(f"Creating new wrestler: {name} from {school}")
+        wrestler = Wrestler(name=name, school=school, weight_class=int(weight_class), wins=0, losses=0, elo_rating=1500)
+        db.session.add(wrestler)
+        db.session.commit()
+    return wrestler
+
 # Function to validate and process CSV with fuzzy matching suggestions
+import logging
+import difflib
+from flask import flash, session
+from io import TextIOWrapper
+from datetime import datetime
+
 def validate_and_process_csv(file):
     try:
         csv_file = TextIOWrapper(file, encoding='utf-8')
@@ -730,12 +979,12 @@ def validate_and_process_csv(file):
         # Strip any extra spaces from the headers
         csv_reader.fieldnames = [header.strip() for header in csv_reader.fieldnames]
 
-        required_headers = ['Date', 'Wrestler1', 'School1', 'Wrestler2', 'School2', 'WeightClass', 'Winner', 'WinType']
-        
-        # Ensure the file has the correct headers
-        if set(required_headers).difference(set(csv_reader.fieldnames)):
-            missing_headers = list(set(required_headers).difference(set(csv_reader.fieldnames)))
+        # Ensure required columns exist
+        required_headers = ['Date', 'Wrestler1', 'School1', 'Wrestler2', 'School2', 'WeightClass', 'Wrestler1_Score', 'Wrestler2_Score', 'Winner', 'WinType', 'Match_Time']
+        missing_headers = list(set(required_headers).difference(set(csv_reader.fieldnames)))
+        if missing_headers:
             flash(f"Missing required columns in CSV: {', '.join(missing_headers)}", 'error')
+            logging.error(f"Missing columns: {missing_headers}")
             return False
 
         # Initialize counters and lists to collect feedback
@@ -744,20 +993,57 @@ def validate_and_process_csv(file):
         row_errors = 0
         detailed_feedback = []
 
-        # Process rows one by one to handle large CSVs efficiently
+        # Process rows
         for row_num, row in enumerate(csv_reader, start=1):
             try:
-                # Extract data from the row
-                wrestler1_name = row['Wrestler1'].strip().title()
-                school1_name = row['School1'].strip().title()
-                wrestler2_name = row['Wrestler2'].strip().title()
-                school2_name = row['School2'].strip().title()
-                weight_class = row['WeightClass'].strip()
-                winner_name = row['Winner'].strip().title()
+                # Processing each field and stripping whitespace
+                wrestler1_name = row['Wrestler1'].strip()
+                school1_name = row['School1'].strip()
+                wrestler2_name = row['Wrestler2'].strip()
+                school2_name = row['School2'].strip()
+                weight_class = int(row['WeightClass'].strip())
+                wrestler1_score = int(row['Wrestler1_Score'].strip())
+                wrestler2_score = int(row['Wrestler2_Score'].strip())
+                winner_name = row['Winner'].strip()
                 win_type = row['WinType'].strip()
 
+                # Initialize flags for different types of wins
+                decision = False
+                major_decision = False
+                fall = False
+                technical_fall = False
+                match_time = None
+
+                # Handle win types and match times
+                if win_type == 'Decision':
+                    decision = True
+                    match_time = None  # No match time for decisions
+                elif win_type == 'Major Decision':
+                    major_decision = True
+                    match_time = None  # No match time for major decisions
+                elif win_type == 'Fall':
+                    fall = True
+                    try:
+                        match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()  # Use the match time provided
+                    except ValueError:
+                        detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Fall' win type.")
+                        row_errors += 1
+                        continue
+                elif win_type == 'Technical Fall':
+                    technical_fall = True
+                    try:
+                        match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()  # Use the match time provided
+                    except ValueError:
+                        detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Technical Fall' win type.")
+                        row_errors += 1
+                        continue
+                else:
+                    detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'.")
+                    row_errors += 1
+                    continue
+
                 # Validate weight class
-                if not weight_class.isdigit() or int(weight_class) not in WEIGHT_CLASSES:
+                if weight_class not in WEIGHT_CLASSES:
                     detailed_feedback.append(f"Row {row_num}: Invalid weight class '{weight_class}'.")
                     row_errors += 1
                     continue
@@ -772,13 +1058,8 @@ def validate_and_process_csv(file):
                     continue
 
                 # Validate other fields
-                if not all([wrestler1_name, school1_name, wrestler2_name, school2_name, winner_name, win_type]):
+                if not all([wrestler1_name, school1_name, wrestler2_name, school2_name, winner_name]):
                     detailed_feedback.append(f"Row {row_num}: Missing required fields.")
-                    row_errors += 1
-                    continue
-
-                if wrestler1_name == wrestler2_name and school1_name == school2_name:
-                    detailed_feedback.append(f"Row {row_num}: Invalid match (self-match).")
                     row_errors += 1
                     continue
 
@@ -820,7 +1101,14 @@ def validate_and_process_csv(file):
                     wrestler1_id=wrestler1.id,
                     wrestler2_id=wrestler2.id,
                     winner_id=winner.id,
-                    win_type=win_type
+                    win_type=win_type,
+                    wrestler1_score=wrestler1_score,
+                    wrestler2_score=wrestler2_score,
+                    match_time=match_time,  # Only set match time for 'Fall' or 'Technical Fall'
+                    decision=decision,
+                    major_decision=major_decision,
+                    fall=fall,
+                    technical_fall=technical_fall
                 )
                 db.session.add(new_match)
 
@@ -832,9 +1120,13 @@ def validate_and_process_csv(file):
                     wrestler2.wins += 1
                     wrestler1.losses += 1
 
-                # Recalculate Elo ratings for both wrestlers
+                # Recalculate Elo, RPI, and Hybrid for both wrestlers
                 recalculate_elo(wrestler1)
                 recalculate_elo(wrestler2)
+                recalculate_rpi(wrestler1)
+                recalculate_rpi(wrestler2)
+                recalculate_hybrid(wrestler1)
+                recalculate_hybrid(wrestler2)
 
                 added_matches += 1
                 detailed_feedback.append(f"Row {row_num}: Match added successfully.")
@@ -842,7 +1134,7 @@ def validate_and_process_csv(file):
             except Exception as e:
                 detailed_feedback.append(f"Row {row_num}: Error processing match ({str(e)}).")
                 row_errors += 1
-                db.session.rollback()
+                db.session.rollback()  # Rollback only if the current row fails
                 continue
 
         # Commit changes after processing all rows
@@ -858,9 +1150,11 @@ def validate_and_process_csv(file):
 
     except Exception as e:
         flash(f"An error occurred during CSV processing: {str(e)}", 'error')
+        logging.error(f"An error occurred during CSV processing: {str(e)}")
         return False
 
 
+    
 @app.route('/export_rankings')
 @login_required
 @admin_required
@@ -1050,11 +1344,29 @@ def clear_data():
 
     return redirect(url_for('home'))
 
+#not needed
+@app.route('/recalculate_all_rpi')
+@login_required
+@admin_required
+def recalculate_all_rpi():
+    wrestlers = Wrestler.query.all()
+    for wrestler in wrestlers:
+        recalculate_rpi(wrestler)
+        recalculate_hybrid(wrestler)
+    db.session.commit()
+    flash('RPI and Hybrid scores recalculated for all wrestlers.', 'success')
+    return redirect(url_for('home'))
+
+
+
 @app.route('/upload_csv', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def upload_csv():
     if request.method == 'POST':
+        # Clear previous feedback from session before processing a new file
+        session.pop('csv_feedback', None)
+
         # Check if a file was uploaded
         if 'file' not in request.files or request.files['file'].filename == '':
             flash('No file selected', 'error')
@@ -1065,9 +1377,9 @@ def upload_csv():
         # Check if the uploaded file is a CSV
         if file.filename.endswith('.csv'):
             try:
-                # Call the function to process CSV
+                # Call the function to process the CSV
                 result = validate_and_process_csv(file)
-                
+
                 # If processing was successful
                 if result:
                     flash('CSV uploaded and processed successfully!', 'success')
@@ -1080,9 +1392,54 @@ def upload_csv():
 
         return redirect(url_for('upload_csv'))
 
-    # For GET request, show the form and clear session feedback
+    # For GET request, show the form and fetch feedback from the session
     csv_feedback = session.pop('csv_feedback', None)
     return render_template('upload_csv.html', csv_feedback=csv_feedback)
+
+@app.route('/search', methods=['GET'])
+def search_wrestler():
+    query = request.args.get('query', '')
+    if query:
+        # Search for wrestlers whose names match the query (case-insensitive)
+        wrestlers = Wrestler.query.filter(Wrestler.name.ilike(f"%{query}%")).all()
+    else:
+        wrestlers = []
+
+    # Render a template to show the search results
+    return render_template('search_results.html', query=query, wrestlers=wrestlers)
+
+@app.route('/autocomplete', methods=['GET'])
+def autocomplete():
+    query = request.args.get('query', '')
+    print(f"Received query: {query}")  # Log the query
+
+    if query:
+        # Find wrestlers whose names match the query (case-insensitive search)
+        wrestlers = Wrestler.query.filter(Wrestler.name.ilike(f"%{query}%")).all()
+        print(f"Found wrestlers: {[wrestler.name for wrestler in wrestlers]}")  # Log found wrestlers
+
+        # Extract wrestler names and their IDs to return as suggestions
+        wrestler_names = [{"name": wrestler.name, "id": wrestler.id} for wrestler in wrestlers]
+    else:
+        wrestler_names = []
+
+    # Return the list of wrestler names and IDs as a JSON response
+    print(f"Returning suggestions: {wrestler_names}")  # Log the returned suggestions
+    return jsonify(wrestler_names)
+
+
+@app.route('/global-leaderboards', methods=['GET'])
+def global_leaderboards():
+    # Fetch top wrestlers for each win type using the helper function
+    fall_leaders = get_stat_leaders('Fall', limit=10)
+    tech_fall_leaders = get_stat_leaders('Technical Fall', limit=10)
+    major_decision_leaders = get_stat_leaders('Major Decision', limit=10)
+
+    return render_template('global_leaderboards.html',
+                           fall_leaders=fall_leaders,
+                           tech_fall_leaders=tech_fall_leaders,
+                           major_decision_leaders=major_decision_leaders)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1109,6 +1466,21 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('home'))
 
+# This function can be used to create a new admin user
+@app.route('/create_admin')
+def create_admin():
+    if User.query.filter_by(username='admin').first() is None:
+        # Define new user details and set the is_admin flag
+        new_user = User(
+            username='admin',
+            email='admin@example.com',
+            password=generate_password_hash('password123', method='pbkdf2:sha256'),  # Secure password hash
+            is_admin=True  # Set admin privileges
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        return "Admin user created successfully!"
+    return "Admin user already exists."
 
 if __name__ == '__main__':
     app.run(debug=True)

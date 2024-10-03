@@ -10,6 +10,7 @@
         <label for="date">Date:</label>
         <input type="date" class="form-control" id="date" name="date" required>
     </div>
+
     <div class="form-group">
         <label for="wrestler1_id">Wrestler 1:</label>
         <select class="form-control" id="wrestler1_id" name="wrestler1_id" required>
@@ -19,6 +20,7 @@
             {% endfor %}
         </select>
     </div>
+
     <div class="form-group">
         <label for="wrestler2_id">Wrestler 2:</label>
         <select class="form-control" id="wrestler2_id" name="wrestler2_id" required>
@@ -28,12 +30,24 @@
             {% endfor %}
         </select>
     </div>
+
     <div class="form-group">
         <label for="winner_id">Winner:</label>
         <select class="form-control" id="winner_id" name="winner_id" required>
             <option value="">Select Winner</option>
         </select>
     </div>
+
+    <div class="form-group">
+        <label for="wrestler1_score">Wrestler 1 Score:</label>
+        <input type="number" class="form-control" id="wrestler1_score" name="wrestler1_score" min="0" required>
+    </div>
+
+    <div class="form-group">
+        <label for="wrestler2_score">Wrestler 2 Score:</label>
+        <input type="number" class="form-control" id="wrestler2_score" name="wrestler2_score" min="0" required>
+    </div>
+
     <div class="form-group">
         <label for="win_type">Win Type:</label>
         <select class="form-control" id="win_type" name="win_type" required>
@@ -44,8 +58,18 @@
             <option value="Fall">Fall</option>
             <option value="Forfeit">Forfeit</option>
             <option value="Injury Default">Injury Default</option>
+            <option value="Overtime 1">Overtime 1 (OT1)</option>
+            <option value="Overtime 2">Overtime 2 (OT2)</option>
+            <option value="Tie Breaker 1">Tie Breaker 1 (TB1)</option>
+            <option value="Tie Breaker 2">Tie Breaker 2 (TB2)</option>
         </select>
     </div>
+
+    <div class="form-group">
+        <label for="match_time">Match Time (Only for Falls/Technical Falls):</label>
+        <input type="time" step="1" class="form-control" id="match_time" name="match_time">
+    </div>
+
     <button type="submit" class="btn btn-primary">Add Match</button>
 </form>
 
