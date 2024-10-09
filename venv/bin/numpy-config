@@ -1,4 +1,4 @@
-#!/Users/kevinbratland/Desktop/wrestling_rankings/venv/bin/python
+#!/Users/kevinbratland/flask_project/wrestling_rankings/venv/bin/python3.12
 # -*- coding: utf-8 -*-
 import re
 import sys

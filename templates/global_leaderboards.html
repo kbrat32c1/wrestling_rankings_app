@@ -3,72 +3,96 @@
 {% block title %}Statistical Leaders - NCAA Wrestling Rankings{% endblock %}
 
 {% block content %}
-    <div class="container mt-4">
-        <h1 class="text-center mb-4">Statistical Leaders</h1>
+<div class="container mt-4">
+    <h1 class="text-center mb-5">Statistical Leaders</h1>
 
-        <!-- Leaderboard for Falls -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Fall Leaders</h5>
-                        <ul class="list-group">
-                            {% for wrestler, fall_count in fall_leaders %}
-                            <li class="list-group-item d-flex justify-content-between">
-                                <span class="text-left">{{ loop.index }}. 
-                                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">
-                                        {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
-                                    </a>
-                                </span>
-                                <span class="badge badge-primary badge-pill">{{ fall_count }}</span>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Leaderboard for Technical Falls -->
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Technical Fall Leaders</h5>
-                        <ul class="list-group">
-                            {% for wrestler, tech_fall_count in tech_fall_leaders %}
-                            <li class="list-group-item d-flex justify-content-between">
-                                <span class="text-left">{{ loop.index }}. 
-                                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">
-                                        {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
-                                    </a>
-                                </span>
-                                <span class="badge badge-success badge-pill">{{ tech_fall_count }}</span>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Leaderboard for Major Decisions -->
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Major Decision Leaders</h5>
-                        <ul class="list-group">
-                            {% for wrestler, major_decision_count in major_decision_leaders %}
-                            <li class="list-group-item d-flex justify-content-between">
-                                <span class="text-left">{{ loop.index }}. 
-                                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">
-                                        {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
-                                    </a>
-                                </span>
-                                <span class="badge badge-warning badge-pill">{{ major_decision_count }}</span>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
+    <!-- Most Dominant Wrestlers -->
+    <div class="row mb-5">
+        <div class="col-md-12">
+            <div class="card bg-light shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-center">Top 10 Most Dominant Wrestlers</h5>
+                    <ul class="list-group list-group-flush">
+                        {% for wrestler in most_dominant_wrestlers %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ loop.index }}. 
+                                <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}" class="font-weight-bold text-dark">
+                                    {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
+                                </a>
+                            </span>
+                            <span class="badge badge-danger badge-pill">Dominance: {{ wrestler.dominance_score }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Leaderboards for Other Stats -->
+    <div class="row">
+        <!-- Fall Leaders -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-center text-primary">Fall Leaders</h5>
+                    <ul class="list-group list-group-flush">
+                        {% for wrestler, fall_count in fall_leaders %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ loop.index }}.
+                                <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}" class="text-dark">
+                                    {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
+                                </a>
+                            </span>
+                            <span class="badge badge-primary badge-pill">{{ fall_count }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Fall Leaders -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-center text-success">Technical Fall Leaders</h5>
+                    <ul class="list-group list-group-flush">
+                        {% for wrestler, tech_fall_count in tech_fall_leaders %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ loop.index }}.
+                                <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}" class="text-dark">
+                                    {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
+                                </a>
+                            </span>
+                            <span class="badge badge-success badge-pill">{{ tech_fall_count }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Major Decision Leaders -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-center text-warning">Major Decision Leaders</h5>
+                    <ul class="list-group list-group-flush">
+                        {% for wrestler, major_decision_count in major_decision_leaders %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ loop.index }}.
+                                <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}" class="text-dark">
+                                    {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
+                                </a>
+                            </span>
+                            <span class="badge badge-warning badge-pill">{{ major_decision_count }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

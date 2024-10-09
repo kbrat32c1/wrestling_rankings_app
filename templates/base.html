@@ -10,31 +10,30 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    
-    <!-- Custom CSS for Autocomplete -->
+
+    <!-- Custom CSS for Autocomplete and Table -->
     <style>
         /* Adjusted search bar width */
         .form-inline input[type="search"] {
-            border: 1px solid #ccc; /* Keep a subtle border */
-            border-radius: 4px; /* Rounded corners */
+            border: 1px solid #ccc;
+            border-radius: 4px;
             padding: 6px 10px;
-            box-shadow: none; /* No shadow */
-            width: 250px; /* Adjusted width for the search bar */
+            box-shadow: none;
+            width: 250px;
         }
-    
+
         .form-inline input[type="search"]:focus {
-            outline: none; /* No outline when focused */
-            border-color: #66afe9; /* Optional: subtle focus effect */
+            outline: none;
+            border-color: #66afe9;
         }
-    
-        /* Ensure there is no margin, padding, or borders that cause a gray line */
+
         .navbar .form-inline {
             position: relative;
-            margin-bottom: 0; /* Removes any space below the search bar */
-            border: none; /* Removes any border below the search bar */
-            padding-bottom: 0; /* Removes any padding that might cause the bar */
+            margin-bottom: 0;
+            border: none;
+            padding-bottom: 0;
         }
-    
+
         .autocomplete-results {
             position: absolute;
             top: 100%;
@@ -46,9 +45,9 @@
             max-height: 200px;
             overflow-y: auto;
             z-index: 1000;
-            width: 250px; /* Match the width of the search bar */
+            width: 250px;
         }
-    
+
         .autocomplete-item {
             padding: 10px;
             cursor: pointer;
@@ -56,12 +55,45 @@
             color: black;
             border-bottom: 1px solid #eee;
         }
-    
+
         .autocomplete-item:hover {
             background-color: #f0f0f0;
         }
+
+        /* Centering the "Update All" button */
+        .update-all-container {
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        /* Fix for table layout and header issue */
+        .table th, .table td {
+            word-wrap: break-word;  /* Wrap long content */
+            max-width: 150px;  /* Adjust this based on your table structure */
+            text-align: center;
+        }
+
+        .table th {
+            white-space: normal; /* Allow wrapping on table headers */
+        }
+
+        /* Customize the footer */
+        footer {
+            background-color: #343a40;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        footer img {
+            margin-bottom: 10px;
+        }
+
+        footer p {
+            margin: 0;
+        }
     </style>
-    
 </head>
 <body>
 
@@ -83,15 +115,18 @@
                 <li class="nav-item">
                     <a class="nav-link" href="/">Home</a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/add_wrestler">Add Wrestler</a>
+                
+                <!-- Dropdown for CSV Management -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="csvDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        CSV Management
+                    </a>
+                    <div class="dropdown-menu" aria-labelledby="csvDropdown">
+                        <a class="dropdown-item" href="/upload_csv">Upload CSV</a>
+                        <a class="dropdown-item" href="/csv_reports">CSV Reports</a>
+                    </div>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/add_match">Add Match</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/upload_csv">Upload CSV</a>
-                </li>
+
                 <!-- Dropdown for Export Data -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -103,6 +138,7 @@
                         <a class="dropdown-item" href="/export_matches">Export Matches</a>
                     </div>
                 </li>
+                
                 <!-- Added Global Leaderboards Link -->
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('global_leaderboards') }}">Statistical Leaders</a>
@@ -112,7 +148,7 @@
             <!-- Search Form for Autocomplete -->
             <form id="search-form" class="form-inline my-2 my-lg-0" action="{{ url_for('search_wrestler') }}" method="GET">
                 <input class="form-control mr-sm-2" type="search" id="search" placeholder="Search Wrestler" aria-label="Search" name="query">
-                <div id="autocomplete-results" class="autocomplete-results"></div> <!-- This div will show suggestions -->
+                <div id="autocomplete-results" class="autocomplete-results"></div>
             </form>
             
             <!-- Right side: Undo Button, Login/Logout -->
@@ -136,13 +172,22 @@
         </div>
     </nav>
 
+    <!-- Admin "Update All" Button -->
+    {% if current_user.is_authenticated and current_user.is_admin %}
+        <div class="update-all-container">
+            <form action="{{ url_for('update_all') }}" method="post">
+                <button type="submit" class="btn btn-danger">Update All Rankings and Stats</button>
+            </form>
+        </div>
+    {% endif %}
+
     <!-- Main Content -->
     <div class="container mt-4" style="background-color: #F4F4F4;">
         {% block content %}{% endblock %}
     </div>
 
     <!-- Footer -->
-    <footer class="mt-5 py-3" style="background-color: #343a40; color: white;">
+    <footer class="mt-5">
         <img src="{{ url_for('static', filename='images/D3_LOGO_FULL_TAG_LIGHTgreen.png') }}" alt="D3 Wrestling" width="150">
         <p>&copy; 2024 D3 Wrestling. All rights reserved.</p>
         <p>Discover. Develop. Dedicate.</p>
@@ -156,20 +201,17 @@
     <!-- JavaScript for Autocomplete -->
     <script>
         $(document).ready(function() {
-            // Trigger autocomplete when the user types in the search bar
             $('#search').on('input', function() {
                 var query = $(this).val();
     
-                if (query.length >= 2) {  // Start showing suggestions after 2 characters
+                if (query.length >= 2) {
                     $.ajax({
-                        url: "{{ url_for('autocomplete') }}",  // Flask autocomplete route
+                        url: "{{ url_for('autocomplete') }}",
                         type: 'GET',
-                        data: { query: query },  // Send the input value as a query param
+                        data: { query: query },
                         success: function(data) {
-                            // Clear previous results
                             $('#autocomplete-results').empty();
     
-                            // Show the autocomplete dropdown
                             if (data.length > 0) {
                                 data.forEach(function(item) {
                                     $('#autocomplete-results').append('<div class="autocomplete-item" data-id="' + item.id + '">' + item.name + '</div>');
@@ -178,20 +220,18 @@
                         }
                     });
                 } else {
-                    $('#autocomplete-results').empty();  // Clear if no query
+                    $('#autocomplete-results').empty();
                 }
             });
     
-            // Add a click handler to autocomplete items to redirect to wrestler profile
             $(document).on('click', '.autocomplete-item', function() {
-                var wrestlerId = $(this).data('id');  // Get wrestler ID from the clicked item
-                window.location.href = "/wrestler/" + wrestlerId;  // Redirect to the wrestler's profile
+                var wrestlerId = $(this).data('id');
+                window.location.href = "/wrestler/" + wrestlerId;
             });
     
-            // Close autocomplete results when clicking outside the search form
             $(document).click(function(e) {
                 if (!$(e.target).closest('#search-form').length) {
-                    $('#autocomplete-results').empty();  // Close the dropdown
+                    $('#autocomplete-results').empty();
                 }
             });
         });
