@@ -69,13 +69,13 @@
 
         /* Fix for table layout and header issue */
         .table th, .table td {
-            word-wrap: break-word;  /* Wrap long content */
-            max-width: 150px;  /* Adjust this based on your table structure */
+            word-wrap: break-word;
+            max-width: 150px;
             text-align: center;
         }
 
         .table th {
-            white-space: normal; /* Allow wrapping on table headers */
+            white-space: normal;
         }
 
         /* Customize the footer */
@@ -143,6 +143,13 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('global_leaderboards') }}">Statistical Leaders</a>
                 </li>
+
+                <!-- Link to Manage Seasons for Admins -->
+                {% if current_user.is_authenticated and current_user.is_admin %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('manage_seasons') }}">Manage Seasons</a>
+                </li>
+                {% endif %}
             </ul>
 
             <!-- Search Form for Autocomplete -->
@@ -214,7 +221,8 @@
     
                             if (data.length > 0) {
                                 data.forEach(function(item) {
-                                    $('#autocomplete-results').append('<div class="autocomplete-item" data-id="' + item.id + '">' + item.name + '</div>');
+                                    // Display name with season info and include a season_id
+                                    $('#autocomplete-results').append('<div class="autocomplete-item" data-id="' + item.id + '" data-season="' + item.season_id + '">' + item.name + '</div>');
                                 });
                             }
                         }
@@ -226,7 +234,8 @@
     
             $(document).on('click', '.autocomplete-item', function() {
                 var wrestlerId = $(this).data('id');
-                window.location.href = "/wrestler/" + wrestlerId;
+                var seasonId = $(this).data('season');
+                window.location.href = "/wrestler/" + wrestlerId + "?season_id=" + seasonId; // Include season_id in the URL
             });
     
             $(document).click(function(e) {

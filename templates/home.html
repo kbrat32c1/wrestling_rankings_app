@@ -6,13 +6,37 @@
 
 <h1 class="text-center mb-4">NCAA Wrestling Rankings</h1>
 
+<!-- Current Season Display -->
+{% if selected_season %}
+    <div class="current-season-label alert alert-info text-center font-weight-bold rounded-pill shadow-sm py-3">
+        <i class="fas fa-calendar-alt"></i> Currently Viewing: {{ selected_season.name }}
+    </div>
+{% else %}
+    <div class="current-season-label alert alert-info text-center font-weight-bold rounded-pill shadow-sm py-3">
+        <i class="fas fa-calendar-alt"></i> Currently Viewing: {{ recent_season.name }}
+    </div>
+{% endif %}
+
+<!-- Season Selection Dropdown -->
+<div class="form-group mb-4">
+    <label for="seasonSelect" class="font-weight-bold">Select a season:</label>
+    <select id="seasonSelect" class="form-control custom-select" onchange="selectSeason(this.value)">
+        <option value="" disabled>Select a season</option>
+        {% for season in seasons %}
+        <option value="{{ season.id }}" {% if season.id == selected_season_id %} selected {% endif %}>
+            {{ season.name }}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
 <!-- Dropdown for weight classes -->
 <div class="form-group mb-4">
     <label for="weightClassSelect" class="font-weight-bold">Jump to a weight class:</label>
-    <select id="weightClassSelect" class="form-control custom-select" onchange="location = this.value;">
+    <select id="weightClassSelect" class="form-control custom-select" onchange="jumpToRankings(this.value)">
         <option value="" disabled selected>Select a weight class</option>
         {% for weight_class in weight_class_data %}
-        <option value="{{ url_for('rankings', weight_class=weight_class.weight) }}">{{ weight_class.weight }} lbs</option>
+        <option value="{{ weight_class.weight }}">{{ weight_class.weight }} lbs</option>
         {% endfor %}
     </select>
 </div>
@@ -46,7 +70,7 @@
                 
                 <!-- Button to View Full Rankings -->
                 <div class="mt-auto text-center">
-                    <a href="{{ url_for('rankings', weight_class=weight_class.weight) }}" class="btn btn-primary btn-block">View Full Rankings</a>
+                    <a href="{{ url_for('rankings', weight_class=weight_class.weight) }}?season_id={{ selected_season_id }}" class="btn btn-primary btn-block">View Full Rankings</a>
                 </div>
             </div>
         </div>
@@ -56,24 +80,36 @@
 
 <!-- Admin-only options -->
 {% if current_user.is_authenticated and current_user.is_admin %}
-    <!-- Clear Data Button -->
-    <div class="text-center mt-4">
-        <form action="{{ url_for('clear_data') }}" method="POST" onsubmit="return confirm('Are you sure you want to clear all data? This action cannot be undone!');">
-            <button type="submit" class="btn btn-danger">Clear Data</button>
+    <div class="admin-section mt-4 text-center">
+        <form action="{{ url_for('clear_data', season_id=selected_season_id) }}" method="POST" class="d-inline-block">
+            <button type="submit" class="btn btn-danger">Clear Data for {{ selected_season.name }}</button>
         </form>
-    </div>
-
-    <!-- Add Wrestler Button -->
-    <div class="text-center mt-4">
-        <a href="{{ url_for('add_wrestler') }}" class="btn btn-success">Add Wrestler</a>
+        <form action="{{ url_for('update_all', season_id=selected_season_id) }}" method="POST" class="d-inline-block">
+            <button type="submit" class="btn btn-success mt-2">Update All Rankings and Stats</button>
+        </form>
     </div>
 {% endif %}
 
-<!-- JavaScript for Confirmation Dialog -->
+
+
+<!-- JavaScript for handling season and weight class selection -->
 <script>
-function confirmClearData() {
-    return confirm("Are you sure you want to clear all data? This action cannot be undone.");
-}
+    let selectedSeasonId = "{{ selected_season_id or recent_season.id }}";
+
+    // Store the selected season when the user selects a season
+    function selectSeason(seasonId) {
+        selectedSeasonId = seasonId;
+        location.href = "?season_id=" + seasonId;  // Reload the page with the selected season
+    }
+
+    // Function to jump to rankings and pass the season ID
+    function jumpToRankings(weightClass) {
+        if (selectedSeasonId) {
+            location.href = `/rankings/${weightClass}?season_id=${selectedSeasonId}`;
+        } else {
+            alert("Please select a season first!");
+        }
+    }
 </script>
 
 {% endblock %}

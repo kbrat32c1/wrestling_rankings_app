@@ -5,12 +5,15 @@
 {% block content %}
     <h1>Search Results for "{{ query }}"</h1>
 
-    {% if wrestlers %}
+    {% if wrestler_data %}
         <ul>
-            {% for wrestler in wrestlers %}
+            {% for wrestler in wrestler_data %}
                 <li>
-                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">
+                    <!-- Updated to include season_id in the link -->
+                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id, season_id=wrestler.season_id) }}">
                         {{ wrestler.name }} ({{ wrestler.school }} - {{ wrestler.weight_class }} lbs)
+                        <!-- Display the season name and year -->
+                        <span class="text-muted"> - Season: {{ wrestler.season }} ({{ wrestler.season_year }})</span>
                     </a>
                 </li>
             {% endfor %}

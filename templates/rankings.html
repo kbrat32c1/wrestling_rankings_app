@@ -3,7 +3,7 @@
 {% block title %}Rankings - {{ weight_class }} lbs{% endblock %}
 
 {% block content %}
-<h1>{{ weight_class }} lbs Rankings</h1>
+<h1>{{ weight_class }} lbs Rankings - Season: {{ selected_season.name }}</h1> <!-- Display current season -->
 
 <!-- Badges for currently applied filters -->
 <div class="mb-3">
@@ -20,6 +20,8 @@
 
 <!-- Form for selecting region and conference -->
 <form method="GET" action="{{ url_for('rankings', weight_class=weight_class) }}" id="rankingsFilterForm" class="form-inline mb-3">
+    <input type="hidden" name="season_id" value="{{ selected_season_id }}"> <!-- Ensure season_id persists -->
+
     <div class="form-group mr-3">
         <label for="region" class="mr-2">Filter by Region</label>
         <select name="region" id="region" class="form-control" onchange="this.form.submit()">
@@ -42,7 +44,7 @@
 
     <!-- Clear Filters button -->
     {% if clear_filters %}
-        <a href="{{ url_for('rankings', weight_class=weight_class) }}" class="btn btn-outline-secondary">
+        <a href="{{ url_for('rankings', weight_class=weight_class) }}?season_id={{ selected_season_id }}" class="btn btn-outline-secondary">
             <i class="fas fa-times-circle"></i> Clear Filters
         </a>
     {% endif %}
@@ -68,16 +70,16 @@
                     <th>Losses</th>
                     <th>Win %</th>
                     <th>
-                        <a href="?sort_by=elo{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Elo Rating</a>
+                        <a href="?sort_by=elo&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Elo Rating</a>
                     </th>
                     <th>
-                        <a href="?sort_by=rpi{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">RPI</a>
+                        <a href="?sort_by=rpi&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">RPI</a>
                     </th>
                     <th>
-                        <a href="?sort_by=hybrid{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Hybrid Score</a>
+                        <a href="?sort_by=hybrid&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Hybrid Score</a>
                     </th>
                     <th>
-                        <a href="?sort_by=dominance{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Dominance Score</a>
+                        <a href="?sort_by=dominance&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Dominance Score</a>
                     </th>
                 </tr>
             </thead>
@@ -86,7 +88,7 @@
                     <tr class="{% if loop.index is odd %}table-row-light{% else %}table-row-dark{% endif %}">
                         <td><input type="checkbox" name="wrestler_ids[]" value="{{ wrestler.id }}" class="wrestlerCheckbox"></td>
                         <td>{{ loop.index }}</td>
-                        <td><a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}">{{ wrestler.name }}</a></td>
+                        <td><a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}?season_id={{ selected_season_id }}">{{ wrestler.name }}</a></td> <!-- Passing season_id -->
                         <td>{{ wrestler.school }}</td>
                         <td>{{ wrestler.region }}</td>
                         <td>{{ wrestler.conference }}</td>
