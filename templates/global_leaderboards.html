@@ -4,7 +4,21 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="text-center mb-5">Statistical Leaders</h1>
+    <h1 class="text-center mb-5">Statistical Leaders for Season {{ current_season_name }}</h1>
+
+    <!-- Dropdown to select the season -->
+    <div class="form-group">
+        <form action="{{ url_for('global_leaderboards') }}" method="GET">
+            <label for="seasonSelect" class="font-weight-bold">Select a season:</label>
+            <select id="seasonSelect" name="season_id" class="form-control custom-select" onchange="this.form.submit()">
+                {% for season in seasons %}
+                <option value="{{ season.id }}" {% if season.id == selected_season_id %} selected {% endif %}>
+                    {{ season.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
 
     <!-- Most Dominant Wrestlers -->
     <div class="row mb-5">

@@ -6,10 +6,16 @@
 <h1>Edit Wrestler: {{ wrestler.name }}</h1>
 
 <form method="POST">
+    <!-- Hidden field for season_id to ensure it's passed in the form -->
+    <input type="hidden" name="season_id" value="{{ season_id }}">
+
+    <!-- Name Field -->
     <div class="form-group">
         <label for="name">Name:</label>
         <input type="text" class="form-control" id="name" name="name" value="{{ wrestler.name }}" required>
     </div>
+    
+    <!-- School Field -->
     <div class="form-group">
         <label for="school">School:</label>
         <select class="form-control" id="school" name="school" required>
@@ -18,6 +24,8 @@
             {% endfor %}
         </select>
     </div>
+
+    <!-- Weight Class Field -->
     <div class="form-group">
         <label for="weight_class">Weight Class:</label>
         <select class="form-control" id="weight_class" name="weight_class" required>
@@ -26,8 +34,22 @@
             {% endfor %}
         </select>
     </div>
+
+    <!-- Year in School Field -->
+    <div class="form-group">
+        <label for="year_in_school">Year in School:</label>
+        <select class="form-control" id="year_in_school" name="year_in_school" required>
+            <option value="Freshman" {% if wrestler.year_in_school == 'Freshman' %}selected{% endif %}>Freshman</option>
+            <option value="Sophomore" {% if wrestler.year_in_school == 'Sophomore' %}selected{% endif %}>Sophomore</option>
+            <option value="Junior" {% if wrestler.year_in_school == 'Junior' %}selected{% endif %}>Junior</option>
+            <option value="Senior" {% if wrestler.year_in_school == 'Senior' %}selected{% endif %}>Senior</option>
+        </select>
+    </div>
+
+    <!-- Update Button -->
     <button type="submit" class="btn btn-primary">Update Wrestler</button>
 </form>
 
-<a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}" class="btn btn-secondary mt-3">Back to Wrestler Details</a>
+<!-- Back to Wrestler Details Button with the season_id included -->
+<a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id, season_id=season_id) }}" class="btn btn-secondary mt-3">Back to Wrestler Details</a>
 {% endblock %}

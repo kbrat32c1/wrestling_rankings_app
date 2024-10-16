@@ -49,18 +49,105 @@
             </form>
         </div>
 
-        <!-- Dropdown to select the season to work on -->
+        <!-- Dropdown to select the current season -->
         <div class="form-group mt-5">
             <label for="seasonSelect" class="font-weight-bold">Select a season to manage:</label>
-            <select id="seasonSelect" class="form-control custom-select" onchange="selectSeason(this.value)">
-                <option value="" disabled selected>Select a season</option>
-                {% for season in seasons %}
-                <option value="{{ season.id }}" {% if season.id == selected_season_id %} selected {% endif %}>
-                    {{ season.name }}
-                </option>
-                {% endfor %}
-            </select>
+            <form action="{{ url_for('manage_seasons') }}" method="GET">
+                <select id="seasonSelect" name="season_id" class="form-control custom-select" onchange="this.form.submit()">
+                    <option value="" disabled selected>Select a season</option>
+                    {% for season in seasons %}
+                    <option value="{{ season.id }}" {% if season.id == selected_season_id %} selected {% endif %}>
+                        {{ season.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
         </div>
+
+        <!-- If a season is selected, display the wrestlers -->
+        {% if selected_season %}
+        <h3 class="mt-5">Wrestlers for {{ selected_season.name }}</h3>
+
+        {% if grouped_wrestlers %}
+        <!-- Organize wrestlers by weight class -->
+        <form action="{{ url_for('push_wrestlers_to_new_season') }}" method="POST">
+            <input type="hidden" name="current_season_id" value="{{ selected_season.id }}">
+            <div class="form-group">
+                <label for="newSeasonSelect">Select the next season to push wrestlers to:</label>
+                <select id="newSeasonSelect" name="new_season_id" class="form-control custom-select" required>
+                    <option value="" disabled selected>Select a new season</option>
+                    {% for season in seasons %}
+                    {% if season.id != selected_season.id %}
+                    <option value="{{ season.id }}">{{ season.name }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            {% for weight_class, wrestlers in grouped_wrestlers.items() %}
+            <div class="weight-class-section mt-4">
+                <h4>{{ weight_class }} lbs</h4>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>School</th>
+                            <th>Weight Class</th>
+                            <th>Year in School</th>
+                            <th>Graduating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for wrestler in wrestlers %}
+                        <tr>
+                            <td>{{ wrestler.name }}</td>
+                            <!-- Dropdown for school, pre-populated with current school -->
+                            <td>
+                                <select name="school_{{ wrestler.id }}" class="form-control">
+                                    {% for school_option in school_options %}
+                                    <option value="{{ school_option }}" {% if school_option == wrestler.school %} selected {% endif %}>
+                                        {{ school_option }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <!-- Dropdown for weight class, pre-populated with current weight class -->
+                            <td>
+                                <select name="weight_class_{{ wrestler.id }}" class="form-control">
+                                    {% for weight_class_option in weight_class_options %}
+                                    <option value="{{ weight_class_option }}" {% if weight_class_option == wrestler.weight_class %} selected {% endif %}>
+                                        {{ weight_class_option }} lbs
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <!-- Dropdown for year in school, pre-populated with current year -->
+                            <td>
+                                <select name="year_in_school_{{ wrestler.id }}" class="form-control">
+                                    <option value="FR" {% if wrestler.year_in_school == 'FR' %} selected {% endif %}>FR</option>
+                                    <option value="SO" {% if wrestler.year_in_school == 'SO' %} selected {% endif %}>SO</option>
+                                    <option value="JR" {% if wrestler.year_in_school == 'JR' %} selected {% endif %}>JR</option>
+                                    <option value="SR" {% if wrestler.year_in_school == 'SR' %} selected {% endif %}>SR</option>
+                                </select>
+                            </td>
+                            <!-- Checkbox for graduating status -->
+                            <td>
+                                <input type="checkbox" name="graduating_{{ wrestler.id }}" {% if wrestler.graduating %} checked {% endif %}>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+
+            <!-- Button to push wrestlers to the new season -->
+            <button type="submit" class="btn btn-primary mt-4">Push Wrestlers to Next Season</button>
+        </form>
+
+        {% else %}
+        <p class="text-danger">No wrestlers found for this season.</p>
+        {% endif %}
+        {% endif %}
 
         <!-- Delete season functionality -->
         {% if selected_season %}
@@ -68,85 +155,11 @@
             <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this season and all associated data?')">Delete Season</button>
         </form>
         {% endif %}
-
-        {% if selected_season %}
-        <h3 class="mt-5">Wrestlers for {{ selected_season.name }}</h3>
-
-        <!-- Organize wrestlers by weight class -->
-        {% for weight_class, wrestlers in grouped_wrestlers.items() %}
-        <div class="weight-class-section mt-4">
-            <h4>{{ weight_class }} lbs</h4>
-            <table class="table table-bordered">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>School</th>
-                        <th>Weight Class</th>
-                        <th>Year in School</th>
-                        <th>Graduating</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for wrestler in wrestlers %}
-                    <tr>
-                        <td>{{ wrestler.name }}</td>
-                        <!-- Dropdown for school, pre-populated with current school -->
-                        <td>
-                            <select name="school_{{ wrestler.id }}" class="form-control">
-                                {% for school_option in school_options %}
-                                <option value="{{ school_option }}" {% if school_option == wrestler.school %} selected {% endif %}>
-                                    {{ school_option }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </td>
-                        <!-- Dropdown for weight class, pre-populated with current weight class -->
-                        <td>
-                            <select name="weight_class_{{ wrestler.id }}" class="form-control">
-                                {% for weight_class_option in weight_class_options %}
-                                <option value="{{ weight_class_option }}" {% if weight_class_option == wrestler.weight_class %} selected {% endif %}>
-                                    {{ weight_class_option }} lbs
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </td>
-                        <!-- Dropdown for year in school, pre-populated with current year -->
-                        <td>
-                            <select name="year_in_school_{{ wrestler.id }}" class="form-control">
-                                <option value="FR" {% if wrestler.year_in_school == 'FR' %} selected {% endif %}>FR</option>
-                                <option value="SO" {% if wrestler.year_in_school == 'SO' %} selected {% endif %}>SO</option>
-                                <option value="JR" {% if wrestler.year_in_school == 'JR' %} selected {% endif %}>JR</option>
-                                <option value="SR" {% if wrestler.year_in_school == 'SR' %} selected {% endif %}>SR</option>
-                            </select>
-                        </td>
-                        <!-- Checkbox for graduating status -->
-                        <td>
-                            <input type="checkbox" name="graduating_{{ wrestler.id }}" {% if wrestler.graduating %} checked {% endif %}>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endfor %}
-
-        <!-- Button to push returning wrestlers to the new season -->
-        <form action="{{ url_for('push_wrestlers_to_new_season', new_season_id=selected_season.id) }}" method="POST">
-            <button type="submit" class="btn btn-primary mt-4">Push Returning Wrestlers to Next Season</button>
-        </form>
-        {% else %}
-        <p class="text-danger">Please select a season to view wrestlers.</p>
-        {% endif %}
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 
-    <script>
-        function selectSeason(seasonId) {
-            location.href = "?season_id=" + seasonId;  // Reload the page with the selected season
-        }
-    </script>
 </body>
 </html>

@@ -350,13 +350,15 @@ class Wrestler(db.Model):
     rpi = db.Column(db.Float, default=0)
     dominance_score = db.Column(db.Float, nullable=False, default=0.0)
     season_id = db.Column(db.Integer, db.ForeignKey('season.id'), nullable=False)
-    graduating = db.Column(db.Boolean, default=False)  # New field for graduating status
-    year_in_school = db.Column(db.String(20), nullable=True)  # New field for tracking year in school
+    graduating = db.Column(db.Boolean, default=False)  # Field for graduating status
+    year_in_school = db.Column(db.String(20), nullable=True, default='Freshman')  # New field for tracking year in school
 
+    # Relationship to Season
     season = db.relationship('Season', backref='wrestlers')
 
-    matches_as_wrestler1 = db.relationship('Match', foreign_keys='Match.wrestler1_id', lazy='dynamic', backref='matches_as_wrestler1_data')
-    matches_as_wrestler2 = db.relationship('Match', foreign_keys='Match.wrestler2_id', lazy='dynamic', backref='matches_as_wrestler2_data')
+    # Bidirectional relationships to matches (as wrestler1 or wrestler2) with back_populates
+    matches_as_wrestler1 = db.relationship('Match', foreign_keys='Match.wrestler1_id', back_populates='wrestler1', lazy='dynamic')
+    matches_as_wrestler2 = db.relationship('Match', foreign_keys='Match.wrestler2_id', back_populates='wrestler2', lazy='dynamic')
 
     @property
     def total_matches(self):
@@ -426,6 +428,17 @@ class Wrestler(db.Model):
         """Mark this wrestler as graduating."""
         self.graduating = True
 
+    def update_year_in_school(self):
+        """Update the wrestler's year in school for the next season."""
+        if self.year_in_school == 'Freshman':
+            self.year_in_school = 'Sophomore'
+        elif self.year_in_school == 'Sophomore':
+            self.year_in_school = 'Junior'
+        elif self.year_in_school == 'Junior':
+            self.year_in_school = 'Senior'
+        elif self.year_in_school == 'Senior':
+            self.graduate()
+
 
 
 class Match(db.Model):
@@ -441,14 +454,15 @@ class Match(db.Model):
     wrestler1_id = db.Column(db.Integer, db.ForeignKey('wrestler.id'), nullable=False)
     wrestler2_id = db.Column(db.Integer, db.ForeignKey('wrestler.id'), nullable=False)
 
-    # Relationships to wrestler using renamed backrefs and overlaps parameter to avoid conflict
-    wrestler1 = db.relationship('Wrestler', foreign_keys=[wrestler1_id], backref='matches_as_wrestler1_data', overlaps="matches_as_wrestler1")
-    wrestler2 = db.relationship('Wrestler', foreign_keys=[wrestler2_id], backref='matches_as_wrestler2_data', overlaps="matches_as_wrestler2")
+    # Relationships to wrestlers with back_populates to establish bidirectional relationship
+    wrestler1 = db.relationship('Wrestler', foreign_keys=[wrestler1_id], back_populates='matches_as_wrestler1')
+    wrestler2 = db.relationship('Wrestler', foreign_keys=[wrestler2_id], back_populates='matches_as_wrestler2')
 
     # Winner of the match
     winner_id = db.Column(db.Integer, db.ForeignKey('wrestler.id'), nullable=False)
     winner = db.relationship('Wrestler', foreign_keys=[winner_id], backref='matches_won')
 
+    # Win type and score details
     win_type = db.Column(db.String(20), nullable=False)
     wrestler1_score = db.Column(db.Integer, nullable=False, default=0)
     wrestler2_score = db.Column(db.Integer, nullable=False, default=0)
@@ -461,6 +475,8 @@ class Match(db.Model):
     decision = db.Column(db.Boolean, default=False)
     injury_default = db.Column(db.Boolean, default=False)
     sudden_victory = db.Column(db.Boolean, default=False)
+    double_overtime = db.Column(db.Boolean, default=False)  # New field for 2-OT win
+    medical_forfeit = db.Column(db.Boolean, default=False)  # New field for Medical Forfeit win
 
     def calculate_win_type(self):
         if self.fall:
@@ -471,6 +487,10 @@ class Match(db.Model):
             self.win_type = 'Injury Default'
         elif self.sudden_victory:
             self.win_type = 'SV-1'
+        elif self.double_overtime:
+            self.win_type = '2-OT'  # Handle Double Overtime
+        elif self.medical_forfeit:
+            self.win_type = 'Medical Forfeit'  # Handle Medical Forfeit
         else:
             score_diff = abs(self.wrestler1_score - self.wrestler2_score)
             if score_diff >= 15:
@@ -483,12 +503,15 @@ class Match(db.Model):
                 self.win_type = 'Decision'
                 self.decision = True
 
+        # Set the corresponding boolean flags based on the win_type
         self.fall = self.win_type == 'Fall'
         self.technical_fall = self.win_type == 'Technical Fall'
         self.major_decision = self.win_type == 'Major Decision'
         self.decision = self.win_type == 'Decision'
         self.injury_default = self.win_type == 'Injury Default'
         self.sudden_victory = self.win_type == 'SV-1'
+        self.double_overtime = self.win_type == '2-OT'
+        self.medical_forfeit = self.win_type == 'Medical Forfeit'
 
     def to_dict(self):
         return {
@@ -507,8 +530,11 @@ class Match(db.Model):
             'decision': self.decision,
             'injury_default': self.injury_default,
             'sudden_victory': self.sudden_victory,
+            'double_overtime': self.double_overtime,
+            'medical_forfeit': self.medical_forfeit,
             'season_id': self.season_id  # Include the season in match details
         }
+
 
 
 # SQLAlchemy event listeners
@@ -544,29 +570,28 @@ class CSVUploadReport(db.Model):
     match_ids = db.Column(db.Text, nullable=False)  # Store added match IDs as a JSON array for reversion
     is_reverted = db.Column(db.Boolean, nullable=False, default=False)  # Track if the report has been reverted
 
-def to_dict(self):
-    try:
-        feedback = json.loads(self.detailed_feedback)
-    except json.JSONDecodeError:
-        feedback = []  # Fallback if there's an issue with the feedback data
+    def to_dict(self):
+        try:
+            feedback = json.loads(self.detailed_feedback)
+        except json.JSONDecodeError:
+            feedback = []  # Fallback if there's an issue with the feedback data
 
-    try:
-        match_ids = json.loads(self.match_ids)
-    except json.JSONDecodeError:
-        match_ids = []  # Fallback if there's an issue with the match_ids data
+        try:
+            match_ids = json.loads(self.match_ids)
+        except json.JSONDecodeError:
+            match_ids = []  # Fallback if there's an issue with the match_ids data
 
-    return {
-        'id': self.id,
-        'uploaded_at': self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S'),
-        'total_matches': self.total_matches,
-        'added_matches': self.added_matches,
-        'skipped_duplicates': self.skipped_duplicates,
-        'row_errors': self.row_errors,
-        'detailed_feedback': feedback,
-        'match_ids': match_ids,
-        'is_reverted': self.is_reverted  # **New flag** added to the dictionary output
-    }
-
+        return {
+            'id': self.id,
+            'uploaded_at': self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'total_matches': self.total_matches,
+            'added_matches': self.added_matches,
+            'skipped_duplicates': self.skipped_duplicates,
+            'row_errors': self.row_errors,
+            'detailed_feedback': feedback,
+            'match_ids': match_ids,
+            'is_reverted': self.is_reverted
+        }
 
 
 
@@ -812,13 +837,13 @@ def get_weight_class_data(season_id=None):
 def home():
     # Get all available seasons, ordered by start_date (or end_date if you prefer) descending
     seasons = Season.query.order_by(Season.start_date.desc()).all()
-    
+
     # Get the most recent season (the first in the ordered list) and set it as default
     recent_season = seasons[0] if seasons else None
 
     # Get the selected season from the URL or default to the most recent season
     selected_season_id = request.args.get('season_id')
-    
+
     if not selected_season_id and recent_season:
         # Default to the most recent season if no season is selected
         selected_season_id = recent_season.id
@@ -826,17 +851,25 @@ def home():
     # Fetch the selected season object, or default to recent season if not provided
     selected_season = Season.query.get(selected_season_id) if selected_season_id else recent_season
 
-    # Fetch weight class data with respect to the selected season
+    if not selected_season:
+        # If no season exists, redirect to manage seasons with a message
+        flash('No seasons found. Please create a new season to proceed.', 'warning')
+        return redirect(url_for('manage_seasons'))
+
+    # Initialize weight_class_data for storing wrestlers by weight class
     weight_class_data = []
-    for weight in WEIGHT_CLASSES:
-        wrestlers = Wrestler.query.filter_by(weight_class=weight, season_id=selected_season.id)\
-                                  .order_by(Wrestler.elo_rating.desc())\
-                                  .limit(5)\
-                                  .all()
-        weight_class_data.append({
-            'weight': weight,
-            'wrestlers': wrestlers
-        })
+
+    if selected_season:
+        # Fetch weight class data with respect to the selected season if it exists
+        for weight in WEIGHT_CLASSES:
+            wrestlers = Wrestler.query.filter_by(weight_class=weight, season_id=selected_season.id)\
+                                      .order_by(Wrestler.elo_rating.desc())\
+                                      .limit(5)\
+                                      .all()
+            weight_class_data.append({
+                'weight': weight,
+                'wrestlers': wrestlers
+            })
 
     # Render the home template with season data
     return render_template('home.html',
@@ -948,6 +981,11 @@ def rankings(weight_class):
 def wrestler_detail(wrestler_id):
     # Get the selected season from query parameters
     selected_season_id = request.args.get('season_id')
+
+    # Ensure selected_season_id is provided, fallback if necessary
+    if not selected_season_id:
+        flash('Season ID is missing!', 'error')
+        return redirect(url_for('home'))  # Redirect or handle the error if season_id is missing
 
     # Fetch the wrestler by ID, filtered by the selected season
     wrestler = Wrestler.query.filter_by(id=wrestler_id, season_id=selected_season_id).first_or_404()
@@ -1075,8 +1113,8 @@ def wrestler_detail(wrestler_id):
                            major_decision_rank=major_decision_rank,
                            region=wrestler_region,
                            conference=wrestler_conference,
-                           selected_season=selected_season)  # Pass the selected season
-
+                           selected_season=selected_season,
+                           selected_season_id=selected_season_id)  # Ensure season_id is passed correctly
 
 
 
@@ -1132,12 +1170,12 @@ def add_match():
             winner_id = int(request.form['winner_id'])
             date = datetime.strptime(request.form['date'], '%Y-%m-%d')
             win_type = request.form['win_type']
+            season_id = int(request.form['season_id'])  # Include season_id from the form
 
             # Fetch wrestler data from the database
             wrestler1 = Wrestler.query.get(wrestler1_id)
             wrestler2 = Wrestler.query.get(wrestler2_id)
 
-            # Check if both wrestlers exist
             if not wrestler1 or not wrestler2:
                 flash('One or both wrestlers not found.', 'error')
                 return redirect(url_for('add_match'))
@@ -1146,13 +1184,18 @@ def add_match():
             wrestler1.school = normalize_school_name(wrestler1.school)
             wrestler2.school = normalize_school_name(wrestler2.school)
 
-            # Check if a match already exists between these two wrestlers on the same date
-            existing_match = Match.query.filter_by(wrestler1_id=wrestler1_id, wrestler2_id=wrestler2_id, date=date).first()
+            # Check if a match already exists between these two wrestlers on the same date and season
+            existing_match = Match.query.filter_by(
+                wrestler1_id=wrestler1_id, 
+                wrestler2_id=wrestler2_id, 
+                date=date,
+                season_id=season_id  # Ensure match exists in the same season
+            ).first()
+
             if existing_match:
                 flash(f'Match between {wrestler1.name} and {wrestler2.name} on {date.strftime("%Y-%m-%d")} already exists.', 'error')
                 return redirect(url_for('add_match'))
 
-            # Validate that wrestlers are not the same and are in the same weight class
             if wrestler1.id == wrestler2.id:
                 flash('A wrestler cannot compete against themselves.', 'error')
                 return redirect(url_for('add_match'))
@@ -1161,13 +1204,14 @@ def add_match():
                 flash('Wrestlers must be in the same weight class to compete.', 'error')
                 return redirect(url_for('add_match'))
 
-            # Create and add new match
+            # Create and add new match with season_id
             new_match = Match(
                 date=date,
                 wrestler1_id=wrestler1_id,
                 wrestler2_id=wrestler2_id,
                 winner_id=winner_id,
-                win_type=win_type
+                win_type=win_type,
+                season_id=season_id
             )
             db.session.add(new_match)
 
@@ -1179,39 +1223,33 @@ def add_match():
                 wrestler2.wins += 1
                 wrestler1.losses += 1
 
-            # Commit match and wrestler updates
             db.session.commit()
 
-            # Recalculate Elo ratings for both wrestlers
+            # Recalculate stats for both wrestlers
             recalculate_elo(wrestler1)
             recalculate_elo(wrestler2)
 
-            # Recalculate RPI for both wrestlers
             recalculate_rpi(wrestler1)
             recalculate_rpi(wrestler2)
 
-            # Recalculate Hybrid for both wrestlers
             recalculate_hybrid(wrestler1)
             recalculate_hybrid(wrestler2)
 
-            # Recalculate Dominance Score for both wrestlers
-            wrestler1.dominance_score = calculate_dominance_score(wrestler1)
-            wrestler2.dominance_score = calculate_dominance_score(wrestler2)
+            recalculate_dominance(wrestler1)
+            recalculate_dominance(wrestler2)
 
             # Commit all changes at once to the database
             db.session.commit()
 
-            # Flash success message and redirect to the homepage
             flash(f'Match added: {wrestler1.name} vs {wrestler2.name}', 'success')
-            return redirect(url_for('home'))
+            return redirect(url_for('home', season_id=season_id))
+
 
         except Exception as e:
-            # If an error occurs, rollback the transaction and show an error message
             db.session.rollback()
             flash(f'An error occurred: {str(e)}', 'error')
             return redirect(url_for('add_match'))
 
-    # For GET requests, render the add_match form
     wrestlers = Wrestler.query.order_by(Wrestler.weight_class, Wrestler.name).all()
     serialized_wrestlers = [
         {
@@ -1222,29 +1260,61 @@ def add_match():
             'display_name': f"{w.name} ({w.school}) - {w.weight_class} lbs"
         } for w in wrestlers
     ]
-
-    # Render the form with wrestler data
-    return render_template('add_match.html', wrestlers=serialized_wrestlers, weight_classes=WEIGHT_CLASSES)
+    return render_template('add_match.html', wrestlers=serialized_wrestlers, weight_classes=WEIGHT_CLASSES, seasons=Season.query.all())
 
 
 
+from datetime import datetime, time
+
+from datetime import datetime, time
 
 @app.route('/edit_match/<int:match_id>', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def edit_match(match_id):
     match = Match.query.get_or_404(match_id)
-    
+
     if request.method == 'POST':
         try:
+            # Log the incoming form data
+            app.logger.info(f"Form Data: {request.form}")
+
+            # Get form data
             match.date = datetime.strptime(request.form['date'], '%Y-%m-%d')
             match.wrestler1_id = int(request.form['wrestler1_id'])
             match.wrestler2_id = int(request.form['wrestler2_id'])
+            match.wrestler1_score = int(request.form['wrestler1_score'])
+            match.wrestler2_score = int(request.form['wrestler2_score'])
             new_winner_id = int(request.form['winner_id'])
             match.win_type = request.form['win_type']
 
+            # Handle match_time
+            match_time_str = request.form.get('match_time')
+            if match.win_type in ['Decision', 'Major Decision']:
+                # For Decision and Major Decision, clear match_time
+                match.match_time = None
+            elif match_time_str:  
+                # Convert the match_time string to a time object if provided
+                match.match_time = datetime.strptime(match_time_str, '%H:%M:%S').time()
+            else:
+                match.match_time = None  # Set match_time to None if not provided
+
+            # Include season_id from the form or fallback to the current match's season
+            season_id = request.form.get('season_id', match.season_id)
+            if season_id:
+                season_id = int(season_id)  # Convert to int only if it's not None
+            else:
+                app.logger.error("Missing season_id in form data!")
+                flash('Missing season_id, please try again.', 'error')
+                return redirect(url_for('edit_match', match_id=match.id, season_id=match.season_id))
+
+            # Fetch wrestlers
             wrestler1 = Wrestler.query.get(match.wrestler1_id)
             wrestler2 = Wrestler.query.get(match.wrestler2_id)
+
+            if not wrestler1 or not wrestler2:
+                flash('Wrestlers not found. Please verify the input.', 'error')
+                return redirect(url_for('edit_match', match_id=match.id, season_id=season_id))
 
             # Revert old win/loss records
             old_winner = Wrestler.query.get(match.winner_id)
@@ -1261,37 +1331,31 @@ def edit_match(match_id):
 
             db.session.commit()
 
-            # Recalculate Elo ratings for both wrestlers
+            # Recalculate stats for both wrestlers
             recalculate_elo(wrestler1)
             recalculate_elo(wrestler2)
-
-            # Recalculate RPI for both wrestlers
             recalculate_rpi(wrestler1)
             recalculate_rpi(wrestler2)
-
-            # Recalculate Hybrid for both wrestlers
             recalculate_hybrid(wrestler1)
             recalculate_hybrid(wrestler2)
+            recalculate_dominance(wrestler1)
+            recalculate_dominance(wrestler2)
 
-            # Recalculate Dominance Score for both wrestlers
-            wrestler1.dominance_score = calculate_dominance_score(wrestler1)
-            wrestler2.dominance_score = calculate_dominance_score(wrestler2)
-
-            # Commit all changes at once to the database
+            # Commit all changes
             db.session.commit()
 
-
             flash('Match has been updated.', 'success')
-            logger.info(f"Updated match: {wrestler1.name} vs {wrestler2.name}, Winner: {new_winner.name}")
-            return redirect(url_for('wrestler_detail', wrestler_id=match.wrestler1_id))
+            return redirect(url_for('wrestler_detail', wrestler_id=wrestler1.id, season_id=season_id))
+
         except Exception as e:
             db.session.rollback()
+            app.logger.error(f"Error occurred: {str(e)}")
             flash(f'An error occurred: {str(e)}', 'error')
-            logger.error(f"Error updating match: {str(e)}")
-            return redirect(url_for('edit_match', match_id=match.id))
+            return redirect(url_for('edit_match', match_id=match.id, season_id=match.season_id))
 
     wrestlers = Wrestler.query.order_by(Wrestler.weight_class, Wrestler.name).all()
-    return render_template('edit_match.html', match=match, wrestlers=wrestlers)
+    return render_template('edit_match.html', match=match, wrestlers=wrestlers, seasons=Season.query.all())
+
 
 
 @app.route('/edit_wrestler/<int:wrestler_id>', methods=['GET', 'POST'])
@@ -1299,38 +1363,40 @@ def edit_match(match_id):
 @admin_required
 def edit_wrestler(wrestler_id):
     wrestler = Wrestler.query.get_or_404(wrestler_id)
-    
+
+    # Capture the season_id from query parameters
+    season_id = request.args.get('season_id')
+
     if request.method == 'POST':
+        # Get the updated values from the form
         wrestler.name = request.form['name'].strip()
         wrestler.school = request.form['school'].strip()
         wrestler.weight_class = int(request.form['weight_class'])
+        wrestler.year_in_school = request.form['year_in_school']  # New field for year in school
 
+        # Validate the form fields
         if not wrestler.name or wrestler.school not in D3_WRESTLING_SCHOOLS or wrestler.weight_class not in WEIGHT_CLASSES:
             flash('Please fill out all fields correctly.', 'error')
-            return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS)
-        
+            return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS, season_id=season_id)
+
+        # Commit changes to the database
         db.session.commit()
 
-        # Recalculate RPI for the wrestler in case any match-related data is affected
-        # Recalculate Elo ratings for both wrestlers
-        recalculate_elo(wrestler1)
-        recalculate_elo(wrestler2)
+        # Recalculate stats for the wrestler after editing
+        recalculate_elo(wrestler)
+        recalculate_rpi(wrestler)
+        recalculate_hybrid(wrestler)
+        recalculate_dominance(wrestler)
 
-        # recalculate RPI
-        recalculate_rpi(wrestler1)
-        recalculate_rpi(wrestler2)
-
-        # recalculate Hybrid
-        recalculate_hybrid(wrestler1)
-        recalculate_hybrid(wrestler2) 
-        
+        # Commit all recalculations
         db.session.commit()
 
         flash(f'Wrestler {wrestler.name} has been updated.', 'success')
-        logger.info(f"Updated wrestler: {wrestler.name}, School: {wrestler.school}, Weight Class: {wrestler.weight_class}")
-        return redirect(url_for('wrestler_detail', wrestler_id=wrestler.id))
-    
-    return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS)
+        # Ensure the redirect includes season_id
+        return redirect(url_for('wrestler_detail', wrestler_id=wrestler.id, season_id=season_id))
+
+    return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS, season_id=season_id)
+
 
 @app.route('/delete_wrestler/<int:wrestler_id>', methods=['POST'])
 @login_required
@@ -1338,50 +1404,32 @@ def edit_wrestler(wrestler_id):
 def delete_wrestler(wrestler_id):
     wrestler = Wrestler.query.get_or_404(wrestler_id)
 
-    # Store wrestler data and matches for undo
-    wrestler_data = wrestler.to_dict()
+    # Get all matches of the wrestler
     matches = wrestler.matches_as_wrestler1.all() + wrestler.matches_as_wrestler2.all()
-    match_data = [match.to_dict() for match in matches]
 
-    session['last_action'] = {
-        'action': 'delete_wrestler',
-        'wrestler_data': wrestler_data,
-        'matches': match_data
-    }
-
-    # Delete the matches and adjust opponents' win/loss and Elo
+    # Adjust win/loss and stats for opponents in all matches
     for match in matches:
         opponent = match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
-        
-        # Adjust opponent's win/loss record
+
         if match.winner_id == wrestler.id:
             opponent.losses -= 1
         else:
             opponent.wins -= 1
-        
-        # Recalculate Elo ratings for the opponent
-        recalculate_elo(opponent)
-        
-        # Recalculate RPI for the opponent
-        recalculate_rpi(opponent)
-        
-        # Recalculate Hybrid for the opponent
-        recalculate_hybrid(opponent)
-        
-        # Recalculate Dominance Score for the opponent
-        opponent.dominance_score = calculate_dominance_score(opponent)
 
-        # Delete the match after all recalculations
+        # Recalculate stats for opponent
+        recalculate_elo(opponent)
+        recalculate_rpi(opponent)
+        recalculate_hybrid(opponent)
+        recalculate_dominance(opponent)
+
         db.session.delete(match)
 
     # Delete the wrestler after processing their matches
     db.session.delete(wrestler)
-
-    # Commit all changes at once to the database
     db.session.commit()
 
     flash(f'Wrestler {wrestler.name} and all their matches have been deleted.', 'success')
-    return redirect(url_for('home'))
+    return redirect(url_for('home', season_id=request.args.get('season_id')))
 
 
 
@@ -1389,11 +1437,12 @@ def delete_wrestler(wrestler_id):
 @login_required
 @admin_required
 def delete_match(match_id):
+    # Fetch the match and wrestlers involved
     match = Match.query.get_or_404(match_id)
     wrestler1 = Wrestler.query.get(match.wrestler1_id)
     wrestler2 = Wrestler.query.get(match.wrestler2_id)
 
-    # Revert win/loss records before deleting the match
+    # Check and revert win/loss records before deleting the match
     if match.winner_id == wrestler1.id:
         wrestler1.wins -= 1
         wrestler2.losses -= 1
@@ -1404,33 +1453,28 @@ def delete_match(match_id):
     # Delete the match from the database
     db.session.delete(match)
 
-    # Recalculate Elo ratings for both wrestlers
+    # Recalculate stats for both wrestlers after match deletion
     recalculate_elo(wrestler1)
     recalculate_elo(wrestler2)
-
-    # Recalculate RPI for both wrestlers
     recalculate_rpi(wrestler1)
     recalculate_rpi(wrestler2)
-
-    # Recalculate Hybrid for both wrestlers
     recalculate_hybrid(wrestler1)
     recalculate_hybrid(wrestler2)
+    recalculate_dominance(wrestler1)
+    recalculate_dominance(wrestler2)
 
-    # Recalculate Dominance Score for both wrestlers
-    wrestler1.dominance_score = calculate_dominance_score(wrestler1)
-    wrestler2.dominance_score = calculate_dominance_score(wrestler2)
-
-    # Commit all changes at once to the database
+    # Commit the changes to the database
     db.session.commit()
 
-
+    # Flash a success message
     flash(f'Match between {wrestler1.name} and {wrestler2.name} has been deleted.', 'success')
 
-    # Get wrestler_id from the query string parameter
-    wrestler_id = request.args.get('wrestler_id')
+    # Get the wrestler_id and season_id from the request arguments, defaulting to wrestler1 if not provided
+    wrestler_id = request.args.get('wrestler_id', default=wrestler1.id)
+    season_id = request.args.get('season_id')
 
-    # Redirect back to the wrestler's profile
-    return redirect(url_for('wrestler_detail', wrestler_id=wrestler_id))
+    # Redirect back to the wrestler details page, using the correct season
+    return redirect(url_for('wrestler_detail', wrestler_id=wrestler_id, season_id=season_id))
 
 
 @app.route('/undo', methods=['POST'])
@@ -1545,7 +1589,6 @@ def get_or_create_wrestler(name, school, weight_class, season_id):
 
 
 
-# Function to validate and process the uploaded CSV
 def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
     try:
         csv_file = TextIOWrapper(file, encoding='utf-8')
@@ -1606,6 +1649,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 technical_fall = False
                 injury_default = False
                 sudden_victory = False
+                double_overtime = False  # New flag for 2-OT
+                medical_forfeit = False  # New flag for Medical Forfeit
                 match_time = None
 
                 # Handle win types and match times
@@ -1646,6 +1691,12 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                             detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'SV-1' win type.")
                             row_errors += 1
                             continue
+                elif win_type == '2-OT':  # Double Overtime
+                    double_overtime = True
+                    # No need for match time for overtime types
+                elif win_type == 'Medical Forfeit':  # Medical Forfeit
+                    medical_forfeit = True
+                    # No need for match time for forfeits
                 else:
                     detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'.")
                     row_errors += 1
@@ -1691,18 +1742,31 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     row_errors += 1
                     continue
 
-                # Check for existing match with same date, score, and time (if provided)
-                existing_match = Match.query.filter_by(
-                    wrestler1_id=wrestler1.id,
-                    wrestler2_id=wrestler2.id,
-                    date=match_date,
-                    wrestler1_score=wrestler1_score,
-                    wrestler2_score=wrestler2_score,
-                    match_time=match_time  # Differentiating by match time as well
+                # Check for existing match with the same date, score, win type, wrestler pairing, and season
+                existing_match = Match.query.filter(
+                    db.or_(
+                        db.and_(
+                            Match.wrestler1_id == wrestler1.id,
+                            Match.wrestler2_id == wrestler2.id
+                        ),
+                        db.and_(
+                            Match.wrestler1_id == wrestler2.id,
+                            Match.wrestler2_id == wrestler1.id
+                        )
+                    ),
+                    Match.date == match_date,
+                    Match.wrestler1_score == wrestler1_score,
+                    Match.wrestler2_score == wrestler2_score,
+                    Match.win_type == win_type,
+                    Match.season_id == season.id,  # Ensure match is in the same season
+                    db.or_(
+                        Match.match_time == match_time,
+                        Match.match_time == None  # Handle cases where match_time is NULL
+                    )
                 ).first()
 
                 if existing_match:
-                    detailed_feedback.append(f"Row {row_num}: Duplicate match detected (already exists with same date, score, and time).")
+                    detailed_feedback.append(f"Row {row_num}: Duplicate match detected (already exists with the same date, score, win type, and season).")
                     skipped_duplicates += 1
                     continue  # Skip if the match already exists
 
@@ -1723,6 +1787,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     technical_fall=technical_fall,
                     injury_default=injury_default,
                     sudden_victory=sudden_victory,
+                    double_overtime=double_overtime,  # New field for 2-OT
+                    medical_forfeit=medical_forfeit,  # New field for Medical Forfeit
                     season_id=season.id  # Assign correct season
                 )
                 db.session.add(new_match)
@@ -1793,7 +1859,6 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
         return False
 
 
-
 def revert_csv_upload(report_id):
     try:
         # Fetch the CSV upload report by its ID
@@ -1858,18 +1923,22 @@ def revert_csv_upload(report_id):
 
 
 
-def save_csv_report(upload_date, report_details):
-    # Store the report in session as a list of uploads
-    csv_reports = session.get('csv_reports', [])
+def save_csv_report(upload_date, report_details, total_matches, added_matches, skipped_duplicates, row_errors, match_ids):
+    # Create a new CSVUploadReport object and save it to the database
+    new_report = CSVUploadReport(
+        uploaded_at=upload_date,
+        total_matches=total_matches,
+        added_matches=added_matches,
+        skipped_duplicates=skipped_duplicates,
+        row_errors=row_errors,
+        detailed_feedback=json.dumps(report_details),  # Store feedback as JSON
+        match_ids=json.dumps(match_ids)  # Store match IDs as JSON
+    )
 
-    # Add the current upload details
-    csv_reports.append({
-        'upload_date': upload_date,  # Store the date of the upload
-        'report_details': report_details  # Store the detailed report (successes and errors)
-    })
+    # Add the report to the database
+    db.session.add(new_report)
+    db.session.commit()
 
-    # Save back to session
-    session['csv_reports'] = csv_reports
    
 
 
@@ -1887,11 +1956,11 @@ def csv_reports(page):
     # Start building the query for fetching the reports
     reports_query = CSVUploadReport.query.order_by(CSVUploadReport.uploaded_at.desc())
 
-    # Filter by search term if provided (modify fields according to your model)
+    # Filter by search term if provided
     if search:
         reports_query = reports_query.filter(
             (CSVUploadReport.detailed_feedback.ilike(f'%{search}%')) |
-            (CSVUploadReport.total_matches.ilike(f'%{search}%'))  # Example of adding a match field
+            (CSVUploadReport.total_matches.ilike(f'%{search}%'))
         )
 
     # Filter by status (active or reverted)
@@ -1909,15 +1978,11 @@ def csv_reports(page):
             try:
                 # Parse the feedback from JSON format
                 report.detailed_feedback = json.loads(report.detailed_feedback)
-                # Log the feedback content to verify it's fully loaded
-                app.logger.info(f"Feedback for report {report.id}: {report.detailed_feedback}")
             except json.JSONDecodeError:
                 # Handle JSON parsing error, set as empty if it fails
                 report.detailed_feedback = []
-
-            else:
-                # Set as empty list if no feedback exists
-                report.detailed_feedback = []
+        else:
+            report.detailed_feedback = []
 
     # Log the total number of reports for debugging
     app.logger.info(f"Reports fetched: {paginated_reports.total}, Search: {search}, Status: {status}, Page: {page} of {paginated_reports.pages}")
@@ -1929,7 +1994,6 @@ def csv_reports(page):
         search=search,
         status=status
     )
-
 
 
 @app.route('/revert_upload/<int:report_id>', methods=['POST'])
@@ -2243,19 +2307,35 @@ def autocomplete():
 
 @app.route('/global-leaderboards', methods=['GET'])
 def global_leaderboards():
-    # Fetch top wrestlers for each win type using the helper function
-    fall_leaders = get_stat_leaders('Fall', limit=10)
-    tech_fall_leaders = get_stat_leaders('Technical Fall', limit=10)
-    major_decision_leaders = get_stat_leaders('Major Decision', limit=10)
+    # Fetch all seasons for the dropdown
+    seasons = Season.query.order_by(Season.start_date.desc()).all()
 
-    # Find the top 10 most dominant wrestlers
-    most_dominant_wrestlers = Wrestler.query.order_by(Wrestler.dominance_score.desc()).limit(10).all()
+    # Get the selected season from the request, default to the active season if none is selected
+    selected_season_id = request.args.get('season_id')
+    if selected_season_id:
+        current_season = Season.query.get(selected_season_id)
+    else:
+        current_season = Season.query.filter_by(is_active=True).first()
+
+    # Get the name for the current season
+    current_season_name = current_season.name if current_season else 'N/A'
+
+    # Fetch top wrestlers for each win type and the selected season
+    fall_leaders = get_stat_leaders('Fall', limit=10, season_id=current_season.id)
+    tech_fall_leaders = get_stat_leaders('Technical Fall', limit=10, season_id=current_season.id)
+    major_decision_leaders = get_stat_leaders('Major Decision', limit=10, season_id=current_season.id)
+
+    # Find the top 10 most dominant wrestlers for the selected season
+    most_dominant_wrestlers = Wrestler.query.filter_by(season_id=current_season.id).order_by(Wrestler.dominance_score.desc()).limit(10).all()
 
     return render_template('global_leaderboards.html',
                            fall_leaders=fall_leaders,
                            tech_fall_leaders=tech_fall_leaders,
                            major_decision_leaders=major_decision_leaders,
-                           most_dominant_wrestlers=most_dominant_wrestlers)
+                           most_dominant_wrestlers=most_dominant_wrestlers,
+                           current_season_name=current_season_name,
+                           seasons=seasons,
+                           selected_season_id=current_season.id)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -2354,8 +2434,6 @@ def update_all():
     return redirect(url_for('home'))
 
 
-from datetime import datetime
-from flask import request, flash, redirect, url_for
 
 @app.route('/add_season', methods=['POST'])
 @login_required
@@ -2364,26 +2442,27 @@ def add_season():
         flash('Only admins can add seasons!', 'danger')
         return redirect(url_for('home'))
 
+    # Get form data
     season_name = request.form.get('season_name')
     start_date_str = request.form.get('start_date')
     end_date_str = request.form.get('end_date')
 
-    # Check if all necessary form fields are provided
+    # Validate form fields
     if not season_name or not start_date_str or not end_date_str:
         flash('All fields are required: season name, start date, and end date.', 'danger')
         return redirect(url_for('manage_seasons'))
 
     try:
-        # Convert the string dates to Python date objects
+        # Convert string dates to Python date objects
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
 
-        # Deactivate the current active season
+        # Deactivate current active season if there is one
         current_active_season = Season.query.filter_by(is_active=True).first()
         if current_active_season:
             current_active_season.is_active = False
 
-        # Create the new season
+        # Create and activate the new season
         new_season = Season(
             name=season_name,
             start_date=start_date,
@@ -2391,6 +2470,7 @@ def add_season():
             is_active=True  # New season starts as active
         )
 
+        # Add the new season to the database
         db.session.add(new_season)
         db.session.commit()
 
@@ -2399,51 +2479,6 @@ def add_season():
     except ValueError as e:
         flash(f'Error parsing dates: {e}', 'danger')
 
-    return redirect(url_for('manage_seasons'))
-
-
-@app.route('/push_wrestlers_to_new_season/<int:new_season_id>', methods=['POST'])
-@login_required
-def push_wrestlers_to_new_season(new_season_id):
-    if not current_user.is_admin:
-        flash('Only admins can perform this action!', 'danger')
-        return redirect(url_for('home'))
-
-    latest_season = Season.query.filter_by(is_active=True).order_by(Season.end_date.desc()).first()
-
-    if not latest_season:
-        flash('No active season found to carry over wrestlers.', 'danger')
-        return redirect(url_for('home'))
-
-    # Get all wrestlers for the latest season
-    returning_wrestlers = Wrestler.query.filter_by(season_id=latest_season.id).all()
-
-    for wrestler in returning_wrestlers:
-        # Get the updated fields from the form
-        new_weight_class = request.form.get(f'weight_class_{wrestler.id}', default=wrestler.weight_class)
-        new_school = request.form.get(f'school_{wrestler.id}', default=wrestler.school)
-        new_year_in_school = request.form.get(f'year_in_school_{wrestler.id}', default=wrestler.year_in_school)
-        graduating = request.form.get(f'graduating_{wrestler.id}') is not None  # Checkbox for graduating
-
-        # Skip wrestlers who are marked as graduating
-        if graduating:
-            continue
-
-        # Create a new wrestler entry for the new season
-        new_wrestler = Wrestler(
-            name=wrestler.name,
-            school=new_school,
-            weight_class=int(new_weight_class),
-            year_in_school=new_year_in_school,
-            wins=0,  # Reset wins and losses
-            losses=0,
-            elo_rating=wrestler.elo_rating,  # Carry over Elo rating
-            season_id=new_season_id
-        )
-        db.session.add(new_wrestler)
-
-    db.session.commit()
-    flash('Returning wrestlers have been successfully pushed to the new season!', 'success')
     return redirect(url_for('manage_seasons'))
 
 
@@ -2464,10 +2499,67 @@ def remove_graduates():
     db.session.commit()
 
     flash('Graduating wrestlers removed from the system!', 'success')
-    return redirect(url_for('home'))
+
+    # Ensure season_id is included when redirecting
+    season_id = request.args.get('season_id')
+    return redirect(url_for('home', season_id=season_id))
 
 
+@app.route('/push_wrestlers_to_new_season', methods=['POST'])
+@login_required
+@admin_required
+def push_wrestlers_to_new_season():
+    current_season_id = request.form.get('current_season_id')
+    new_season_id = request.form.get('new_season_id')
 
+    if not current_season_id or not new_season_id:
+        flash('Invalid season selection.', 'danger')
+        return redirect(url_for('manage_seasons'))
+
+    # Query for the wrestlers in the current season
+    wrestlers = Wrestler.query.filter_by(season_id=current_season_id).all()
+
+    if not wrestlers:
+        flash('No wrestlers found in the current season.', 'danger')
+        return redirect(url_for('manage_seasons'))
+
+    # Iterate through wrestlers and push them to the new season
+    for wrestler in wrestlers:
+        # Check if the wrestler is graduating or not returning
+        graduating = 'graduating_{}'.format(wrestler.id) in request.form
+
+        if graduating or wrestler.year_in_school == 'SR':  # Don't push seniors or graduating wrestlers
+            continue  # Skip this wrestler if they're graduating or a senior
+
+        # Update year in school (incrementing for next season)
+        year_in_school = request.form.get(f'year_in_school_{wrestler.id}', wrestler.year_in_school)
+        if year_in_school == 'FR':
+            new_year_in_school = 'SO'
+        elif year_in_school == 'SO':
+            new_year_in_school = 'JR'
+        elif year_in_school == 'JR':
+            new_year_in_school = 'SR'
+        else:
+            new_year_in_school = 'SR'  # Seniors remain seniors if they are pushed forward
+
+        # Create new wrestler entry for the new season
+        new_wrestler = Wrestler(
+            name=wrestler.name,
+            school=request.form.get(f'school_{wrestler.id}', wrestler.school),
+            weight_class=request.form.get(f'weight_class_{wrestler.id}', wrestler.weight_class),
+            year_in_school=new_year_in_school,  # Use the updated year in school
+            elo_rating=wrestler.elo_rating,  # Carry over the Elo rating from the previous season
+            season_id=new_season_id,
+            graduating=False  # Reset graduating status for the new season
+        )
+        db.session.add(new_wrestler)
+
+    db.session.commit()
+    flash('Wrestlers have been successfully pushed to the new season!', 'success')
+    return redirect(url_for('manage_seasons'))
+
+
+import logging
 
 @app.route('/manage_seasons')
 @login_required
@@ -2476,18 +2568,17 @@ def manage_seasons():
         flash('Only admins can manage seasons!', 'danger')
         return redirect(url_for('home'))
 
-    # Get all seasons
+    # Get all seasons to populate the dropdown
     seasons = Season.query.order_by(Season.start_date.desc()).all()
 
     # Get the selected season from the dropdown
     selected_season_id = request.args.get('season_id')
     selected_season = Season.query.get(selected_season_id) if selected_season_id else None
 
-    wrestlers = []
     grouped_wrestlers = {}
 
     if selected_season:
-        # Get all wrestlers for the selected season
+        # Fetch all wrestlers for the selected season
         wrestlers = Wrestler.query.filter_by(season_id=selected_season.id).all()
 
         # Group wrestlers by weight class
@@ -2497,28 +2588,17 @@ def manage_seasons():
                 grouped_wrestlers[weight_class] = []
             grouped_wrestlers[weight_class].append(wrestler)
 
-    # Provide options for schools and weight classes using D3_WRESTLING_SCHOOLS
-    school_options = list(D3_WRESTLING_SCHOOLS.keys())  # Use the hardcoded school list
-    weight_class_options = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285]  # Example weight classes
+    # Hardcoded options for schools and weight classes
+    school_options = list(D3_WRESTLING_SCHOOLS.keys())
+    weight_class_options = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285]
 
     return render_template('manage_seasons.html', 
                            seasons=seasons, 
                            selected_season=selected_season,
-                           selected_season_id=selected_season_id, 
                            grouped_wrestlers=grouped_wrestlers,
                            school_options=school_options,
                            weight_class_options=weight_class_options)
 
-
-
-
-
-import csv
-from io import TextIOWrapper
-
-import csv
-from werkzeug.utils import secure_filename
-import os
 
 # Allowed file extension (CSV)
 def allowed_file(filename):
@@ -2546,6 +2626,43 @@ def delete_season(season_id):
         db.session.rollback()
 
     return redirect(url_for('manage_seasons'))
+
+@app.route('/set_active_season', methods=['POST'])
+@login_required
+@admin_required
+def set_active_season():
+    if not current_user.is_admin:
+        flash('Only admins can perform this action!', 'danger')
+        return redirect(url_for('manage_seasons'))
+
+    # Get the selected season ID from the form
+    selected_season_id = request.form.get('season_id')
+
+    if not selected_season_id:
+        flash('No season selected.', 'danger')
+        return redirect(url_for('manage_seasons'))
+
+    # Find the selected season in the database
+    selected_season = Season.query.get(selected_season_id)
+
+    if not selected_season:
+        flash('Selected season not found.', 'danger')
+        return redirect(url_for('manage_seasons'))
+
+    # Unmark all other seasons as inactive
+    all_seasons = Season.query.all()
+    for season in all_seasons:
+        season.is_active = False
+
+    # Mark the selected season as active
+    selected_season.is_active = True
+
+    # Save the changes to the database
+    db.session.commit()
+
+    flash(f'Active season set to {selected_season.name}.', 'success')
+    return redirect(url_for('manage_seasons'))
+
 
 
 
