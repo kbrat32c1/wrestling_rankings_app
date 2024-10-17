@@ -485,7 +485,7 @@ class Match(db.Model):
     disqualification = db.Column(db.Boolean, default=False)  # New field for disqualification win
 
     def calculate_win_type(self):
-        # Recognize both 'Sudden Victory' and 'SV-1' as valid types
+        # Recognize variations of 'Sudden Victory', 'Double Overtime', etc.
         if self.fall:
             self.win_type = 'Fall'
         elif self.technical_fall:
@@ -518,8 +518,8 @@ class Match(db.Model):
         self.major_decision = self.win_type == 'Major Decision'
         self.decision = self.win_type == 'Decision'
         self.injury_default = self.win_type == 'Injury Default'
-        self.sudden_victory = self.win_type in ['SV-1', 'Sudden Victory']  # Both "SV-1" and "Sudden Victory"
-        self.double_overtime = self.win_type == '2-OT'
+        self.sudden_victory = self.win_type in ['SV-1', 'Sudden Victory', 'Sudden Victory - 1']  # Include variations
+        self.double_overtime = self.win_type in ['2-OT', 'Double Overtime']
         self.medical_forfeit = self.win_type == 'Medical Forfeit'
         self.disqualification = self.win_type == 'Disqualification'
 
@@ -545,7 +545,6 @@ class Match(db.Model):
             'disqualification': self.disqualification,  # Include disqualification in dictionary output
             'season_id': self.season_id  # Include the season in match details
         }
-
 
 
 # SQLAlchemy event listeners
@@ -1634,7 +1633,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 wrestler1_score = int(row['Wrestler1_Score'].strip())
                 wrestler2_score = int(row['Wrestler2_Score'].strip())
                 winner_name = row['Winner'].strip()
-                win_type = row['WinType'].strip()
+                win_type = row['WinType'].strip().lower()  # Convert to lowercase for consistency
 
                 # Parse the date using the flexible date parsing function
                 try:
@@ -1665,11 +1664,11 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 match_time = None
 
                 # Handle win types and match times (Update: Recognizing "Sudden Victory" and "SV-1" as the same)
-                if win_type == 'Decision':
+                if win_type in ['decision', 'dec']:
                     decision = True
-                elif win_type == 'Major Decision':
+                elif win_type in ['major decision', 'major']:
                     major_decision = True
-                elif win_type == 'Fall':
+                elif win_type in ['fall', 'pin']:
                     fall = True
                     try:
                         match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
@@ -1677,7 +1676,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                         detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Fall' win type.")
                         row_errors += 1
                         continue
-                elif win_type == 'Technical Fall':
+                elif win_type in ['technical fall', 'tech fall']:
                     technical_fall = True
                     try:
                         match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
@@ -1685,7 +1684,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                         detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Technical Fall' win type.")
                         row_errors += 1
                         continue
-                elif win_type == 'Injury Default':
+                elif win_type in ['injury default', 'injury']:
                     injury_default = True
                     try:
                         match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
@@ -1693,7 +1692,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                         detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Injury Default' win type.")
                         row_errors += 1
                         continue
-                elif win_type.lower() in ['sv-1', 'sudden victory']:  # Sudden Victory / SV-1 (handle both)
+                elif win_type in ['sv-1', 'sudden victory', 'sudden victory - 1']:  # Sudden Victory / SV-1 (handle both)
                     sudden_victory = True
                     if row['Match_Time'].strip():
                         try:
@@ -1702,13 +1701,11 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                             detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Sudden Victory' win type.")
                             row_errors += 1
                             continue
-                elif win_type == '2-OT':  # Double Overtime
+                elif win_type in ['2-ot', 'double overtime']:  # Double Overtime
                     double_overtime = True
-                    # No need for match time for overtime types
-                elif win_type == 'Medical Forfeit':  # Medical Forfeit
+                elif win_type in ['medical forfeit', 'med forfeit']:  # Medical Forfeit
                     medical_forfeit = True
-                    # No need for match time for forfeits
-                elif win_type == 'Disqualification':  # Handle Disqualification
+                elif win_type in ['disqualification', 'dq']:  # Handle Disqualification
                     disqualification = True
                 else:
                     detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'.")
@@ -1771,17 +1768,17 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     Match.wrestler1_score == wrestler1_score,
                     Match.wrestler2_score == wrestler2_score,
                     Match.win_type == win_type,
-                    Match.season_id == season.id,  # Ensure match is in the same season
+                    Match.season_id == season.id,
                     db.or_(
                         Match.match_time == match_time,
-                        Match.match_time == None  # Handle cases where match_time is NULL
+                        Match.match_time == None
                     )
                 ).first()
 
                 if existing_match:
                     detailed_feedback.append(f"Row {row_num}: Duplicate match detected (already exists with the same date, score, win type, and season).")
                     skipped_duplicates += 1
-                    continue  # Skip if the match already exists
+                    continue
 
                 # Create and add new match
                 winner = wrestler1 if winner_name_normalized == wrestler1_name_normalized else wrestler2
@@ -1793,22 +1790,21 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     win_type=win_type,
                     wrestler1_score=wrestler1_score,
                     wrestler2_score=wrestler2_score,
-                    match_time=match_time,  # Only set match time for applicable win types
+                    match_time=match_time,
                     decision=decision,
                     major_decision=major_decision,
                     fall=fall,
                     technical_fall=technical_fall,
                     injury_default=injury_default,
                     sudden_victory=sudden_victory,
-                    double_overtime=double_overtime,  # New field for 2-OT
-                    medical_forfeit=medical_forfeit,  # New field for Medical Forfeit
-                    disqualification=disqualification,  # New field for Disqualification
-                    season_id=season.id  # Assign correct season
+                    double_overtime=double_overtime,
+                    medical_forfeit=medical_forfeit,
+                    disqualification=disqualification,
+                    season_id=season.id
                 )
                 db.session.add(new_match)
-                db.session.flush()  # Get match ID before commit
+                db.session.flush()
 
-                # Append the new match ID to the list
                 match_ids.append(new_match.id)
 
                 # Update win/loss records
@@ -1837,7 +1833,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
             except Exception as e:
                 detailed_feedback.append(f"Row {row_num}: Error processing match ({str(e)}).")
                 row_errors += 1
-                db.session.rollback()  # Rollback only if the current row fails
+                db.session.rollback()
                 continue
 
         # Save the CSV upload report to the database
@@ -1848,8 +1844,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 added_matches=added_matches,
                 skipped_duplicates=skipped_duplicates,
                 row_errors=row_errors,
-                detailed_feedback=json.dumps(detailed_feedback),  # Convert to JSON
-                match_ids=json.dumps(match_ids)  # Convert match IDs to JSON
+                detailed_feedback=json.dumps(detailed_feedback),
+                match_ids=json.dumps(match_ids)
             )
             db.session.add(upload_report)
             db.session.commit()
@@ -1859,10 +1855,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
             logging.error(f"Error saving CSV upload report: {str(e)}")
             db.session.rollback()
 
-        # Provide feedback after processing
         flash(f"CSV file processed successfully! {added_matches} matches added, {skipped_duplicates} duplicates skipped, {row_errors} errors encountered.", 'success')
-        
-        # Optionally, store detailed feedback in session for display on the next page
         session['csv_feedback'] = detailed_feedback
 
         return True
@@ -1871,7 +1864,6 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
         flash(f"An error occurred during CSV processing: {str(e)}", 'error')
         logging.error(f"An error occurred during CSV processing: {str(e)}")
         return False
-
 
 
 
