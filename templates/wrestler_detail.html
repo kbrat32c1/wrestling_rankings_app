@@ -19,7 +19,7 @@
                 <!-- School, Year in School, and Weight Class with Icons -->
                 <div class="col-md-6">
                     <p><i class="fas fa-school"></i> <strong>School:</strong> {{ wrestler.school }}</p>
-                    <p><i class="fas fa-graduation-cap"></i> <strong>Year in School:</strong> {{ wrestler.year_in_school or 'N/A' }}</p> <!-- New field for year in school -->
+                    <p><i class="fas fa-graduation-cap"></i> <strong>Year in School:</strong> {{ wrestler.year_in_school or 'N/A' }}</p>
                     <p><i class="fas fa-weight"></i> <strong>Weight Class:</strong> {{ wrestler.weight_class }} lbs</p>
                 </div>
                 <!-- Record and Wins/Losses Badge -->
@@ -83,7 +83,7 @@
         </div>
     </div>
 
-    <!-- Admin-Only Actions: Edit/Delete Wrestler -->
+    <!-- Admin-Only Actions: Edit Wrestler -->
     {% if current_user.is_authenticated and current_user.is_admin %}
     <div class="actions mb-4 text-center">
         <a href="{{ url_for('edit_wrestler', wrestler_id=wrestler.id) }}?season_id={{ selected_season_id }}" class="btn btn-primary">Edit Wrestler</a>
@@ -130,9 +130,9 @@
                 <td>{{ match.win_type }}</td>
                 <td>
                     {% if match.win_type == 'Fall' or match.win_type == 'Technical Fall' %}
-                        {{ match.match_time if match.match_time else 'N/A' }}
+                        {{ match.match_time if match.match_time else '' }}
                     {% else %}
-                        <script>console.log('Win type: {{ match.win_type }} should have no match time.')</script>
+                        <!-- Leave blank if no match time is needed -->
                     {% endif %}
                 </td>
                 {% if current_user.is_authenticated and current_user.is_admin %}

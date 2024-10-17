@@ -158,15 +158,8 @@
                 <div id="autocomplete-results" class="autocomplete-results"></div>
             </form>
             
-            <!-- Right side: Undo Button, Login/Logout -->
+            <!-- Right side: Login/Logout Button -->
             <ul class="navbar-nav ml-auto">
-                <!-- Undo Button -->
-                <li class="nav-item">
-                    <form action="/undo" method="post" class="form-inline my-2 my-lg-0">
-                        <input type="hidden" name="next" value="http://127.0.0.1:5000/">
-                        <button type="submit" class="btn btn-warning my-2 my-sm-0">Undo Last Action</button>
-                    </form>
-                </li>
                 <!-- Login/Logout Button -->
                 <li class="nav-item">
                     {% if current_user.is_authenticated %}
