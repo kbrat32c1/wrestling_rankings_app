@@ -22,8 +22,8 @@ if os.getenv('FLASK_ENV') == 'development':
     # Use external database URL for local development
     app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a.ohio-postgres.render.com/ncaa_division_3_wrestlers'
 else:
-    # Use internal database URL for production (on Render)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a/ncaa_division_3_wrestlers'
+    # Use resolved IP address for production (on Render)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@3.143.61.25/ncaa_division_3_wrestlers'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
@@ -557,16 +557,15 @@ def before_insert_listener(mapper, connection, target):
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
-    email = db.Column(db.String(150), unique=True, nullable=False)  # Keep email
     password = db.Column(db.String(200), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)  # Add admin functionality
+    is_admin = db.Column(db.Boolean, default=False)  # Admin functionality
 
     def set_password(self, password):
         self.password = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password, password)
-    
+
 
 
 class CSVUploadReport(db.Model):
@@ -2300,19 +2299,14 @@ def login():
         user = User.query.filter_by(username=username).first()
 
         # Check if the user exists and the password is correct
-        if user and check_password_hash(user.password, password):
+        if user and user.check_password(password):
             login_user(user)  # Logs the user in
             flash('Logged in successfully!', 'success')
-            if user.is_admin:
-                return redirect(url_for('home'))  # Redirect admin to home page
-            else:
-                return redirect(url_for('home'))  # Redirect viewer to home page
+            return redirect(url_for('home'))  # Redirect after successful login
         else:
             flash('Invalid username or password', 'danger')
 
     return render_template('login.html')
-
-
 
 @app.route('/logout')
 @login_required
