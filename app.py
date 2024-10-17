@@ -312,8 +312,8 @@ SCHOOL_ALIASES = {
     "Pacific University": ["Pacific"],
     "Saint Johns University": ["Saint Johns", "St. Johns", "SJU"],
     "University of Wisconsin-Eau Claire": ["Wisconsin-Eau Claire", "Wisconsin Eau Claire", "UW Eau Claire"],
-    "University of Wisconsin-La Crosse": ["Wisconsin La Crosse", "UW La Crosse"],
-    "University of Wisconsin-Oshkosh": ["Wisconsin Oshkosh", "UW Oshkosh"],
+    "University of Wisconsin-La Crosse": ["Wisconsin La Crosse", "UW La Crosse", "Wisconsin-La Crosse"],
+    "University of Wisconsin-Oshkosh": ["Wisconsin Oshkosh", "UW Oshkosh", "Wisconsin-Oshkosh"],
     "University of Wisconsin-Platteville": ["Wisconsin Platteville", "UW Platteville"],
     "University of Wisconsin-Stevens Point": ["Wisconsin Stevens Point", "UW Stevens Point"]
 }
@@ -612,6 +612,11 @@ class CSVUploadReport(db.Model):
 
     
 
+import math
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Elo rating functions
 def expected_score(rating_a, rating_b):
     return 1 / (1 + math.pow(10, (rating_b - rating_a) / 400))
@@ -619,13 +624,17 @@ def expected_score(rating_a, rating_b):
 def update_elo(rating, expected, actual, k_factor=32):
     return rating + k_factor * (actual - expected)
 
-def recalculate_elo(wrestler):
+def recalculate_elo(wrestler_id, season_id):
+    wrestler = Wrestler.query.get(wrestler_id)  # Fetch the wrestler by ID
     logger.info(f"Recalculating Elo for {wrestler.name}")
     wrestler.elo_rating = 1500
-    matches = list(wrestler.matches_as_wrestler1) + list(wrestler.matches_as_wrestler2)
+    matches = Match.query.filter(
+        (Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id),
+        Match.season_id == season_id
+    ).all()  # Filter matches by the specified season
 
     if not matches:
-        logger.info(f"No matches found for {wrestler.name}. Elo remains {wrestler.elo_rating}")
+        logger.info(f"No matches found for {wrestler.name} in season {season_id}. Elo remains {wrestler.elo_rating}")
         return
 
     for match in matches:
@@ -637,18 +646,28 @@ def recalculate_elo(wrestler):
 
     db.session.commit()
 
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+
 # RPI calculation functions
 MIN_MATCHES = 3
 
-def calculate_rpi(wrestler):
+def calculate_rpi(wrestler_id, season_id):
+    wrestler = Wrestler.query.get(wrestler_id)  # Fetch the wrestler by ID
+
     if wrestler.total_matches < MIN_MATCHES:
         logger.info(f"{wrestler.name} has fewer than {MIN_MATCHES} matches. RPI not calculated.")
         return 0, 0, 0, 0
 
     win_percentage = wrestler.wins / max(wrestler.total_matches, 1)
-    matches_as_wrestler1 = wrestler.matches_as_wrestler1.all()
-    matches_as_wrestler2 = wrestler.matches_as_wrestler2.all()
-
+    
+    # Fetch matches for the specified season
+    matches_as_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler_id, season_id=season_id).all()
+    matches_as_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler_id, season_id=season_id).all()
+    
     opponents = set(match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
                     for match in matches_as_wrestler1 + matches_as_wrestler2)
 
@@ -666,15 +685,17 @@ def calculate_rpi(wrestler):
     logger.info(f"RPI for {wrestler.name}: {rpi:.3f}")
     return rpi, win_percentage, opponent_win_percentage, opponent_opponent_win_percentage
 
-def recalculate_rpi(wrestler):
-    rpi, win_percentage, opponent_win_percentage, opponent_opponent_win_percentage = calculate_rpi(wrestler)
+def recalculate_rpi(wrestler_id, season_id):
+    rpi, win_percentage, opponent_win_percentage, opponent_opponent_win_percentage = calculate_rpi(wrestler_id, season_id)
+    wrestler = Wrestler.query.get(wrestler_id)
     wrestler.rpi = rpi
     db.session.commit()
 
     logger.info(f"RPI recalculated for {wrestler.name}: {rpi:.3f}")
     return rpi
 
-def recalculate_hybrid(wrestler):
+def recalculate_hybrid(wrestler_id):
+    wrestler = Wrestler.query.get(wrestler_id)
     """
     Recalculate the hybrid score for the given wrestler.
     The hybrid score is a combination of Elo rating and RPI.
@@ -684,14 +705,19 @@ def recalculate_hybrid(wrestler):
     if wrestler.elo_rating is not None and wrestler.rpi is not None:
         hybrid_score = (0.5 * wrestler.elo_rating) + (0.5 * wrestler.rpi)
         logger.info(f"{wrestler.name}: Hybrid Score recalculated to {hybrid_score}")
+        wrestler.hybrid_score = hybrid_score  # Save it back to the wrestler
     else:
         logger.info(f"{wrestler.name}: Hybrid Score cannot be calculated due to missing values")
     
     db.session.commit()
 
 # Helper function to calculate Dominance Score
-def calculate_dominance_score(wrestler):
-    matches = wrestler.matches_as_wrestler1.all() + wrestler.matches_as_wrestler2.all()
+def calculate_dominance_score(wrestler_id, season_id):
+    wrestler = Wrestler.query.get(wrestler_id)
+    matches = Match.query.filter(
+        (Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id),
+        Match.season_id == season_id
+    ).all()
     
     # Assign points based on the win type
     total_score = 0
@@ -707,7 +733,6 @@ def calculate_dominance_score(wrestler):
                 total_score += 4
             elif match.win_type == 'Decision':
                 total_score += 3
-            # You can add more win types as needed, with default behavior for unrecognized ones
 
     if match_count == 0:
         return 0  # Avoid division by zero if the wrestler has no matches
@@ -715,13 +740,17 @@ def calculate_dominance_score(wrestler):
     # Calculate the average dominance score across all matches
     return round(total_score / match_count, 2)  # Round to 2 decimal places for readability
 
-
-
-def recalculate_dominance(wrestler):
+def recalculate_dominance(wrestler_id, season_id):
     """
     Recalculates and updates the dominance score for a given wrestler.
     """
-    matches = wrestler.matches_as_wrestler1.all() + wrestler.matches_as_wrestler2.all()
+    wrestler = Wrestler.query.get(wrestler_id)
+
+    # Fetch matches for the wrestler in the selected season
+    matches = Match.query.filter(
+        (Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id),
+        Match.season_id == season_id
+    ).all()
     
     # Assign points based on the win type
     total_score = 0
@@ -737,16 +766,18 @@ def recalculate_dominance(wrestler):
                 total_score += 4
             elif match.win_type == 'Decision':
                 total_score += 3
-            # You can add more win types as needed
 
     if match_count == 0:
-        return 0  # Avoid division by zero if the wrestler has no matches
+        wrestler.dominance_score = 0  # Set to 0 if no matches exist
+    else:
+        # Calculate the average dominance score across all matches
+        dominance_score = round(total_score / match_count, 2)  # Round to 2 decimal places for readability
+        wrestler.dominance_score = dominance_score  # Save it back to the wrestler
 
-    # Calculate the average dominance score across all matches
-    dominance_score = round(total_score / match_count, 2)  # Round to 2 decimal places for readability
-    wrestler.dominance_score = dominance_score  # Save it back to the wrestler
+    db.session.commit()  # Commit the changes to the database
+    return wrestler.dominance_score
 
-    return dominance_score
+
 
 
 def get_stat_leaders(stat_column, season_id=None, limit=10):
@@ -843,6 +874,55 @@ def get_weight_class_data(season_id=None):
     return weight_class_data
 
 
+def calculate_wins_losses(wrestler_id, season_id):
+    matches = Match.query.filter(
+        (Match.wrestler1_id == wrestler_id) | (Match.wrestler2_id == wrestler_id),
+        Match.season_id == season_id
+    ).all()
+
+    wins = 0
+    losses = 0
+
+    for match in matches:
+        if match.winner_id == wrestler_id:
+            wins += 1
+        else:
+            losses += 1
+
+    return wins, losses
+
+
+def recalculate_wrestler_stats(wrestler_id, season_id):
+    # Fetch matches for the wrestler in the selected season
+    matches_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler_id, season_id=season_id).all()
+    matches_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler_id, season_id=season_id).all()
+    
+    matches = matches_wrestler1 + matches_wrestler2
+
+    # Initialize stats
+    falls = 0
+    tech_falls = 0
+    major_decisions = 0
+
+    # Loop through each match to calculate falls, tech falls, and major decisions
+    for match in matches:
+        if match.winner_id == wrestler_id:
+            if match.win_type == 'Fall':
+                falls += 1
+            elif match.win_type == 'Technical Fall':
+                tech_falls += 1
+            elif match.win_type == 'Major Decision':
+                major_decisions += 1
+
+    # Update the wrestler's stats
+    wrestler = Wrestler.query.get(wrestler_id)
+    wrestler.falls = falls
+    wrestler.tech_falls = tech_falls
+    wrestler.major_decisions = major_decisions
+    db.session.commit()  # Save changes
+
+
+
 
 
 
@@ -936,6 +1016,12 @@ def rankings(weight_class):
     if selected_conference:
         wrestlers = [wrestler for wrestler in wrestlers if wrestler.conference == selected_conference]
 
+    # Calculate wins and losses for each wrestler
+    for wrestler in wrestlers:
+        wins, losses = calculate_wins_losses(wrestler.id, selected_season_id)
+        wrestler.wins = wins
+        wrestler.losses = losses
+
     # Calculate Dominance Score for each wrestler
     for wrestler in wrestlers:
         matches_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler.id, season_id=selected_season_id).all()
@@ -992,6 +1078,9 @@ def rankings(weight_class):
                            selected_season_id=selected_season_id,
                            selected_season=selected_season)
 
+
+
+
 @app.route('/wrestler/<int:wrestler_id>')
 def wrestler_detail(wrestler_id):
     # Get the selected season from query parameters
@@ -1013,6 +1102,9 @@ def wrestler_detail(wrestler_id):
     wrestler_region = school_info.get("region", "Unknown")
     wrestler_conference = school_info.get("conference", "Unknown")
 
+    # Get wins and losses using the utility function
+    wins, losses = calculate_wins_losses(wrestler_id, selected_season_id)
+
     # Query for all wrestlers in the same weight class and season
     all_wrestlers_in_weight_class = Wrestler.query.filter_by(weight_class=wrestler.weight_class, season_id=selected_season_id).all()
 
@@ -1020,7 +1112,7 @@ def wrestler_detail(wrestler_id):
     sorted_by_elo = sorted(all_wrestlers_in_weight_class, key=lambda w: w.elo_rating, reverse=True)
     sorted_by_rpi = sorted(all_wrestlers_in_weight_class, key=lambda w: w.rpi if w.rpi else 0, reverse=True)
     sorted_by_hybrid = sorted(all_wrestlers_in_weight_class, key=lambda w: w.hybrid_score if w.hybrid_score else 0, reverse=True)
-    sorted_by_dominance = sorted(all_wrestlers_in_weight_class, key=lambda w: calculate_dominance_score(w), reverse=True)
+    sorted_by_dominance = sorted(all_wrestlers_in_weight_class, key=lambda w: recalculate_dominance(w.id, selected_season_id), reverse=True)
 
     # Find the ranks of the current wrestler
     elo_rank = sorted_by_elo.index(wrestler) + 1
@@ -1055,16 +1147,14 @@ def wrestler_detail(wrestler_id):
     # Combine the matches into one list
     matches = matches_wrestler1 + matches_wrestler2
 
-    # Initialize variables for tracking wins, losses, and dominance score
-    wins = 0
-    losses = 0
+    # Initialize variables for tracking dominance score
     total_points = 0
     total_matches = len(matches)  # Total number of matches
 
     # Prepare list for match details to be rendered
     match_details = []
 
-    # Loop through each match to calculate wins, losses, and dominance score
+    # Loop through each match to calculate dominance score
     for match in matches:
         # Identify the opponent
         if match.wrestler1_id == wrestler_id:
@@ -1073,12 +1163,6 @@ def wrestler_detail(wrestler_id):
         else:
             opponent = match.wrestler1
             is_winner = match.winner_id == wrestler_id
-
-        # Count wins and losses
-        if is_winner:
-            wins += 1
-        else:
-            losses += 1
 
         # Calculate points for the dominance score based on win type (Fall, Technical Fall, Major Decision, Decision)
         if is_winner:
@@ -1104,10 +1188,7 @@ def wrestler_detail(wrestler_id):
         })
 
     # Avoid division by zero when calculating the dominance score
-    if total_matches > 0:
-        dominance_score = total_points / total_matches
-    else:
-        dominance_score = 0
+    dominance_score = total_points / total_matches if total_matches > 0 else 0
 
     # Render the wrestler profile template with all the calculated data, including rankings and individual stats
     return render_template('wrestler_detail.html', 
@@ -1130,8 +1211,6 @@ def wrestler_detail(wrestler_id):
                            conference=wrestler_conference,
                            selected_season=selected_season,
                            selected_season_id=selected_season_id)  # Ensure season_id is passed correctly
-
-
 
 @app.route('/add_wrestler', methods=['GET', 'POST'])
 @login_required
@@ -1174,18 +1253,25 @@ def add_wrestler():
     return render_template('add_wrestler.html', weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS)
 
 
+
 @app.route('/add_match', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def add_match():
     if request.method == 'POST':
         try:
+            # Log incoming form data for debugging
+            app.logger.info(f"Form data: {request.form}")
+
+            # Validate and extract form data
             wrestler1_id = int(request.form['wrestler1_id'])
             wrestler2_id = int(request.form['wrestler2_id'])
             winner_id = int(request.form['winner_id'])
             date = datetime.strptime(request.form['date'], '%Y-%m-%d')
             win_type = request.form['win_type']
-            season_id = int(request.form['season_id'])  # Include season_id from the form
+            wrestler1_score = int(request.form['wrestler1_score'])  # Ensure this field exists
+            wrestler2_score = int(request.form['wrestler2_score'])  # Ensure this field exists
+            season_id = int(request.form['season_id'])  # Get the season_id from the form
 
             # Fetch wrestler data from the database
             wrestler1 = Wrestler.query.get(wrestler1_id)
@@ -1193,22 +1279,6 @@ def add_match():
 
             if not wrestler1 or not wrestler2:
                 flash('One or both wrestlers not found.', 'error')
-                return redirect(url_for('add_match'))
-
-            # Normalize the school names for both wrestlers
-            wrestler1.school = normalize_school_name(wrestler1.school)
-            wrestler2.school = normalize_school_name(wrestler2.school)
-
-            # Check if a match already exists between these two wrestlers on the same date and season
-            existing_match = Match.query.filter_by(
-                wrestler1_id=wrestler1_id, 
-                wrestler2_id=wrestler2_id, 
-                date=date,
-                season_id=season_id  # Ensure match exists in the same season
-            ).first()
-
-            if existing_match:
-                flash(f'Match between {wrestler1.name} and {wrestler2.name} on {date.strftime("%Y-%m-%d")} already exists.', 'error')
                 return redirect(url_for('add_match'))
 
             if wrestler1.id == wrestler2.id:
@@ -1219,18 +1289,42 @@ def add_match():
                 flash('Wrestlers must be in the same weight class to compete.', 'error')
                 return redirect(url_for('add_match'))
 
-            # Create and add new match with season_id
+            # Check if a match already exists
+            existing_match = Match.query.filter_by(
+                wrestler1_id=wrestler1_id,
+                wrestler2_id=wrestler2_id,
+                date=date,
+                season_id=season_id
+            ).first()
+
+            if existing_match:
+                flash(f'Match between {wrestler1.name} and {wrestler2.name} on {date.strftime("%Y-%m-%d")} already exists.', 'error')
+                return redirect(url_for('add_match'))
+
+            # Handle optional match time for specific win types
+            match_time = None
+            if win_type in ['Fall', 'Technical Fall']:
+                match_time_input = request.form.get('match_time', '')
+                if not match_time_input:
+                    flash('Match time is required for falls and technical falls.', 'error')
+                    return redirect(url_for('add_match'))
+                match_time = datetime.strptime(match_time_input, '%H:%M:%S').time()
+
+            # Create the new match
             new_match = Match(
                 date=date,
                 wrestler1_id=wrestler1_id,
                 wrestler2_id=wrestler2_id,
                 winner_id=winner_id,
                 win_type=win_type,
+                wrestler1_score=wrestler1_score,
+                wrestler2_score=wrestler2_score,
+                match_time=match_time,
                 season_id=season_id
             )
             db.session.add(new_match)
 
-            # Update the win/loss records
+            # Update win/loss records
             if winner_id == wrestler1.id:
                 wrestler1.wins += 1
                 wrestler2.losses += 1
@@ -1238,33 +1332,35 @@ def add_match():
                 wrestler2.wins += 1
                 wrestler1.losses += 1
 
+            # Commit the new match and updates
             db.session.commit()
 
-            # Recalculate stats for both wrestlers
-            recalculate_elo(wrestler1)
-            recalculate_elo(wrestler2)
 
-            recalculate_rpi(wrestler1)
-            recalculate_rpi(wrestler2)
+            # Recalculate stats for both wrestlers with the season_id
+            recalculate_elo(wrestler1.id, season_id)
+            recalculate_elo(wrestler2.id, season_id)
+            recalculate_rpi(wrestler1.id, season_id)
+            recalculate_rpi(wrestler2.id, season_id)
+            recalculate_hybrid(wrestler1.id, season_id)
+            recalculate_hybrid(wrestler2.id, season_id)
+            recalculate_dominance(wrestler1.id, season_id)
+            recalculate_dominance(wrestler2.id, season_id)
+            # After committing the match
+            recalculate_wrestler_stats(wrestler1.id, season_id)
+            recalculate_wrestler_stats(wrestler2.id, season_id)
 
-            recalculate_hybrid(wrestler1)
-            recalculate_hybrid(wrestler2)
-
-            recalculate_dominance(wrestler1)
-            recalculate_dominance(wrestler2)
-
-            # Commit all changes at once to the database
-            db.session.commit()
 
             flash(f'Match added: {wrestler1.name} vs {wrestler2.name}', 'success')
             return redirect(url_for('home', season_id=season_id))
 
-
         except Exception as e:
-            db.session.rollback()
+            db.session.rollback()  # Rollback the session on error
+            app.logger.error(f"Error adding match: {str(e)}")  # Log the error
+            app.logger.error(f"Form data: {request.form}")  # Log the form data that caused the error
             flash(f'An error occurred: {str(e)}', 'error')
             return redirect(url_for('add_match'))
 
+    # Fetch wrestlers and render the template for GET requests
     wrestlers = Wrestler.query.order_by(Wrestler.weight_class, Wrestler.name).all()
     serialized_wrestlers = [
         {
@@ -1275,11 +1371,12 @@ def add_match():
             'display_name': f"{w.name} ({w.school}) - {w.weight_class} lbs"
         } for w in wrestlers
     ]
-    return render_template('add_match.html', wrestlers=serialized_wrestlers, weight_classes=WEIGHT_CLASSES, seasons=Season.query.all())
+    return render_template('add_match.html', wrestlers=serialized_wrestlers, weight_classes=WEIGHT_CLASSES, seasons=Season.query.all(), season_id=request.args.get('season_id'))
 
 
 
-from datetime import datetime, time
+
+
 
 from datetime import datetime, time
 
@@ -1347,14 +1444,18 @@ def edit_match(match_id):
             db.session.commit()
 
             # Recalculate stats for both wrestlers
-            recalculate_elo(wrestler1)
-            recalculate_elo(wrestler2)
-            recalculate_rpi(wrestler1)
-            recalculate_rpi(wrestler2)
-            recalculate_hybrid(wrestler1)
-            recalculate_hybrid(wrestler2)
-            recalculate_dominance(wrestler1)
-            recalculate_dominance(wrestler2)
+            recalculate_elo(wrestler1.id, season_id)
+            recalculate_elo(wrestler2.id, season_id)
+            recalculate_rpi(wrestler1.id, season_id)
+            recalculate_rpi(wrestler2.id, season_id)
+            recalculate_hybrid(wrestler1.id, season_id)
+            recalculate_hybrid(wrestler2.id, season_id)
+            recalculate_dominance(wrestler1.id, season_id)
+            recalculate_dominance(wrestler2.id, season_id)
+            # After committing the match
+            recalculate_wrestler_stats(wrestler1.id, season_id)
+            recalculate_wrestler_stats(wrestler2.id, season_id)
+
 
             # Commit all changes
             db.session.commit()
@@ -1398,10 +1499,17 @@ def edit_wrestler(wrestler_id):
         db.session.commit()
 
         # Recalculate stats for the wrestler after editing
-        recalculate_elo(wrestler)
-        recalculate_rpi(wrestler)
-        recalculate_hybrid(wrestler)
-        recalculate_dominance(wrestler)
+        recalculate_elo(wrestler1.id, season_id)
+        recalculate_elo(wrestler2.id, season_id)
+        recalculate_rpi(wrestler1.id, season_id)
+        recalculate_rpi(wrestler2.id, season_id)
+        recalculate_hybrid(wrestler1.id, season_id)
+        recalculate_hybrid(wrestler2.id, season_id)
+        recalculate_dominance(wrestler1.id, season_id)
+        recalculate_dominance(wrestler2.id, season_id)
+        # After committing the match
+        recalculate_wrestler_stats(wrestler1.id, season_id)
+        recalculate_wrestler_stats(wrestler2.id, season_id)
 
         # Commit all recalculations
         db.session.commit()
@@ -1432,10 +1540,17 @@ def delete_wrestler(wrestler_id):
             opponent.wins -= 1
 
         # Recalculate stats for opponent
-        recalculate_elo(opponent)
-        recalculate_rpi(opponent)
-        recalculate_hybrid(opponent)
-        recalculate_dominance(opponent)
+        recalculate_elo(wrestler1.id, season_id)
+        recalculate_elo(wrestler2.id, season_id)
+        recalculate_rpi(wrestler1.id, season_id)
+        recalculate_rpi(wrestler2.id, season_id)
+        recalculate_hybrid(wrestler1.id, season_id)
+        recalculate_hybrid(wrestler2.id, season_id)
+        recalculate_dominance(wrestler1.id, season_id)
+        recalculate_dominance(wrestler2.id, season_id)
+        # After committing the match
+        recalculate_wrestler_stats(wrestler1.id, season_id)
+        recalculate_wrestler_stats(wrestler2.id, season_id)
 
         db.session.delete(match)
 
@@ -1469,14 +1584,18 @@ def delete_match(match_id):
     db.session.delete(match)
 
     # Recalculate stats for both wrestlers after match deletion
-    recalculate_elo(wrestler1)
-    recalculate_elo(wrestler2)
-    recalculate_rpi(wrestler1)
-    recalculate_rpi(wrestler2)
-    recalculate_hybrid(wrestler1)
-    recalculate_hybrid(wrestler2)
-    recalculate_dominance(wrestler1)
-    recalculate_dominance(wrestler2)
+    recalculate_elo(wrestler1.id, season_id)
+    recalculate_elo(wrestler2.id, season_id)
+    recalculate_rpi(wrestler1.id, season_id)
+    recalculate_rpi(wrestler2.id, season_id)
+    recalculate_hybrid(wrestler1.id, season_id)
+    recalculate_hybrid(wrestler2.id, season_id)
+    recalculate_dominance(wrestler1.id, season_id)
+    recalculate_dominance(wrestler2.id, season_id)
+    # After committing the match
+    recalculate_wrestler_stats(wrestler1.id, season_id)
+    recalculate_wrestler_stats(wrestler2.id, season_id)
+
 
     # Commit the changes to the database
     db.session.commit()
@@ -1490,6 +1609,8 @@ def delete_match(match_id):
 
     # Redirect back to the wrestler details page, using the correct season
     return redirect(url_for('wrestler_detail', wrestler_id=wrestler_id, season_id=season_id))
+
+
 
 
 @app.route('/undo', methods=['POST'])
@@ -1834,6 +1955,10 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 recalculate_hybrid(wrestler2)
                 recalculate_dominance(wrestler1)
                 recalculate_dominance(wrestler2)
+
+                # Recalculate falls, tech falls, and major decisions
+                recalculate_wrestler_stats(wrestler1.id, season.id)
+                recalculate_wrestler_stats(wrestler2.id, season.id)
 
                 # Commit after each match is successfully added
                 db.session.commit()

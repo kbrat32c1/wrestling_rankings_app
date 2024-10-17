@@ -6,6 +6,8 @@
 <h1>Add New Match</h1>
 
 <form method="POST">
+    <input type="hidden" name="season_id" value="{{ season_id }}">  <!-- Include the season ID -->
+
     <div class="form-group">
         <label for="date">Date:</label>
         <input type="date" class="form-control" id="date" name="date" required>
@@ -35,6 +37,7 @@
         <label for="winner_id">Winner:</label>
         <select class="form-control" id="winner_id" name="winner_id" required>
             <option value="">Select Winner</option>
+            <!-- Winner options will be populated by JavaScript -->
         </select>
     </div>
 
@@ -67,7 +70,7 @@
 
     <div class="form-group">
         <label for="match_time">Match Time (Only for Falls/Technical Falls):</label>
-        <input type="time" step="1" class="form-control" id="match_time" name="match_time">
+        <input type="time" step="1" class="form-control" id="match_time" name="match_time" disabled>
     </div>
 
     <button type="submit" class="btn btn-primary">Add Match</button>
@@ -78,6 +81,7 @@
 <script>
     document.getElementById('wrestler1_id').addEventListener('change', updateWinnerOptions);
     document.getElementById('wrestler2_id').addEventListener('change', updateWinnerOptions);
+    document.getElementById('win_type').addEventListener('change', toggleMatchTime);
 
     function updateWinnerOptions() {
         const wrestler1 = document.getElementById('wrestler1_id');
@@ -98,6 +102,17 @@
             option.value = wrestler2.value;
             option.textContent = wrestler2.options[wrestler2.selectedIndex].text;
             winner.appendChild(option);
+        }
+    }
+
+    function toggleMatchTime() {
+        const winType = document.getElementById('win_type').value;
+        const matchTimeInput = document.getElementById('match_time');
+        if (winType === 'Fall' || winType === 'Technical Fall') {
+            matchTimeInput.disabled = false;
+        } else {
+            matchTimeInput.disabled = true;
+            matchTimeInput.value = ''; // Clear the value if it's disabled
         }
     }
 </script>

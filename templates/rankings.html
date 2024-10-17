@@ -85,8 +85,8 @@
                         <td>{{ wrestler.school }}</td>
                         <td>{{ wrestler.region }}</td>
                         <td>{{ wrestler.conference }}</td>
-                        <td>{{ wrestler.wins }}</td>
-                        <td>{{ wrestler.losses }}</td>
+                        <td>{{ wrestler.wins }}</td> <!-- Ensure wins are updated -->
+                        <td>{{ wrestler.losses }}</td> <!-- Ensure losses are updated -->
                         <td>{{ "%.1f"|format(wrestler.win_percentage) }}%</td>
                         <td>{{ "%.2f"|format(wrestler.elo_rating) }}</td>
                         <td>{{ "%.3f"|format(wrestler.rpi if wrestler.rpi is not none else 0.000) }}</td>
