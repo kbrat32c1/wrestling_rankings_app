@@ -17,14 +17,10 @@ import os
 
 app = Flask(__name__)
 
-# Environment variable to detect local or production environment
-if os.getenv('FLASK_ENV') == 'development':
-    # Use external database URL for local development
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a.ohio-postgres.render.com/ncaa_division_3_wrestlers'
-else:
-    # Use resolved IP address for production (on Render)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@3.143.61.25/ncaa_division_3_wrestlers'
+# Production Database URL (Use the Render PostgreSQL connection string)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a.ohio-postgres.render.com/ncaa_division_3_wrestlers'
 
+# Other configurations
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['SECRET_KEY'] = 'your_secret_key_here'
@@ -483,9 +479,11 @@ class Match(db.Model):
     double_overtime = db.Column(db.Boolean, default=False)  # New field for 2-OT win
     medical_forfeit = db.Column(db.Boolean, default=False)  # New field for Medical Forfeit win
     disqualification = db.Column(db.Boolean, default=False)  # New field for disqualification win
+    tb1 = db.Column(db.Boolean, default=False)  # Field for Tiebreaker 1 win
+    tb2 = db.Column(db.Boolean, default=False)  # Field for Tiebreaker 2 win
 
     def calculate_win_type(self):
-        # Recognize variations of 'Sudden Victory', 'Double Overtime', etc.
+        # Recognize variations of 'Sudden Victory', 'Double Overtime', 'Tiebreaker' etc.
         if self.fall:
             self.win_type = 'Fall'
         elif self.technical_fall:
@@ -496,6 +494,10 @@ class Match(db.Model):
             self.win_type = 'SV-1'  # Sudden Victory will be represented as 'SV-1'
         elif self.double_overtime:
             self.win_type = '2-OT'  # Handle Double Overtime
+        elif self.tb1:
+            self.win_type = 'TB-1'  # Handle Tiebreaker 1
+        elif self.tb2:
+            self.win_type = 'TB-2'  # Handle Tiebreaker 2
         elif self.medical_forfeit:
             self.win_type = 'Medical Forfeit'  # Handle Medical Forfeit
         elif self.disqualification:
@@ -520,6 +522,8 @@ class Match(db.Model):
         self.injury_default = self.win_type == 'Injury Default'
         self.sudden_victory = self.win_type in ['SV-1', 'Sudden Victory', 'Sudden Victory - 1']  # Include variations
         self.double_overtime = self.win_type in ['2-OT', 'Double Overtime']
+        self.tb1 = self.win_type in ['TB-1', 'Tiebreaker - 1']
+        self.tb2 = self.win_type in ['TB-2', 'Tiebreaker - 2 (Riding Time)']
         self.medical_forfeit = self.win_type == 'Medical Forfeit'
         self.disqualification = self.win_type == 'Disqualification'
 
@@ -541,6 +545,8 @@ class Match(db.Model):
             'injury_default': self.injury_default,
             'sudden_victory': self.sudden_victory,
             'double_overtime': self.double_overtime,
+            'tb1': self.tb1,
+            'tb2': self.tb2,
             'medical_forfeit': self.medical_forfeit,
             'disqualification': self.disqualification,  # Include disqualification in dictionary output
             'season_id': self.season_id  # Include the season in match details
@@ -1595,9 +1601,6 @@ def get_or_create_wrestler(name, school, weight_class, season_id):
     
     return wrestler
 
-
-
-
 def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
     try:
         csv_file = TextIOWrapper(file, encoding='utf-8')
@@ -1658,12 +1661,14 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 technical_fall = False
                 injury_default = False
                 sudden_victory = False
-                double_overtime = False  # New flag for 2-OT
-                medical_forfeit = False  # New flag for Medical Forfeit
-                disqualification = False  # New flag for Disqualification
+                double_overtime = False
+                tiebreaker_1 = False
+                tiebreaker_2 = False
+                medical_forfeit = False
+                disqualification = False
                 match_time = None
 
-                # Handle win types and match times (Update: Recognizing "Sudden Victory" and "SV-1" as the same)
+                # Handle win types and match times
                 if win_type in ['decision', 'dec']:
                     decision = True
                 elif win_type in ['major decision', 'major']:
@@ -1692,7 +1697,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                         detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Injury Default' win type.")
                         row_errors += 1
                         continue
-                elif win_type in ['sv-1', 'sudden victory', 'sudden victory - 1']:  # Sudden Victory / SV-1 (handle both)
+                elif win_type in ['sv-1', 'sudden victory', 'sudden victory - 1']:
                     sudden_victory = True
                     if row['Match_Time'].strip():
                         try:
@@ -1701,11 +1706,15 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                             detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Sudden Victory' win type.")
                             row_errors += 1
                             continue
-                elif win_type in ['2-ot', 'double overtime']:  # Double Overtime
+                elif win_type in ['2-ot', 'double overtime']:
                     double_overtime = True
-                elif win_type in ['medical forfeit', 'med forfeit']:  # Medical Forfeit
+                elif win_type in ['tb-1', 'tiebreaker - 1']:
+                    tiebreaker_1 = True
+                elif win_type in ['tb-2', 'tiebreaker - 2', 'tiebreaker - 2 (riding time)']:
+                    tiebreaker_2 = True
+                elif win_type in ['medical forfeit', 'med forfeit']:
                     medical_forfeit = True
-                elif win_type in ['disqualification', 'dq']:  # Handle Disqualification
+                elif win_type in ['disqualification', 'dq']:
                     disqualification = True
                 else:
                     detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'.")
@@ -1739,7 +1748,6 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
 
                 # Validate winner name
                 if winner_name_normalized not in [wrestler1_name_normalized, wrestler2_name_normalized]:
-                    # Fuzzy match suggestion using difflib
                     possible_winners = [wrestler1.name, wrestler2.name]
                     closest_matches = difflib.get_close_matches(winner_name, possible_winners, n=1)
 
@@ -1752,7 +1760,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     row_errors += 1
                     continue
 
-                # Check for existing match with the same date, score, win type, wrestler pairing, and season
+                # Check for existing match
                 existing_match = Match.query.filter(
                     db.or_(
                         db.and_(
@@ -1776,7 +1784,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 ).first()
 
                 if existing_match:
-                    detailed_feedback.append(f"Row {row_num}: Duplicate match detected (already exists with the same date, score, win type, and season).")
+                    detailed_feedback.append(f"Row {row_num}: Duplicate match detected (already exists).")
                     skipped_duplicates += 1
                     continue
 
@@ -1798,6 +1806,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     injury_default=injury_default,
                     sudden_victory=sudden_victory,
                     double_overtime=double_overtime,
+                    tiebreaker_1=tiebreaker_1,
+                    tiebreaker_2=tiebreaker_2,
                     medical_forfeit=medical_forfeit,
                     disqualification=disqualification,
                     season_id=season.id
@@ -1815,7 +1825,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     wrestler2.wins += 1
                     wrestler1.losses += 1
 
-                # Recalculate Elo, RPI, Hybrid, and Dominance Score
+                # Recalculate stats
                 recalculate_elo(wrestler1)
                 recalculate_elo(wrestler2)
                 recalculate_rpi(wrestler1)
@@ -1864,7 +1874,6 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
         flash(f"An error occurred during CSV processing: {str(e)}", 'error')
         logging.error(f"An error occurred during CSV processing: {str(e)}")
         return False
-
 
 
 
