@@ -205,7 +205,7 @@ SCHOOL_ALIASES = {
     "Wesleyan University": ["Wesleyan", "Wesleyan (CT)"],
     "Western New England University": ["Western New England", "WNE"],
     "Williams College": ["Williams"],
-    "Worcester Polytechnic Institute": ["Worcester Poly", "WPI"],
+    "Worcester Polytechnic Institute": ["Worcester Poly", "WPI", "Worcester Polytechnic"],
     "Alfred State University": ["Alfred State"],
     "Centenary University": ["Centenary", "Centenary (NJ)"],
     "Elmira College": ["Elmira"],
