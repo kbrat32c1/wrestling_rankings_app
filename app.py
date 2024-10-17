@@ -188,12 +188,12 @@ D3_WRESTLING_SCHOOLS = {
 
 
 SCHOOL_ALIASES = {
-    "Bridgewater State University": ["Bridgewater State", "BSU"],
+    "Bridgewater State University": ["Bridgewater State", "BSU", "Bridgewater"],
     "Johnson & Wales University": ["Johnson & Wales", "JWU", "Johnson Wales", "Johnson and Wales"],
     "Maine Maritime Academy": ["Maine Maritime", "MMA"],
     "New England College": ["New England College", "NEC"],
     "Norwich University": ["Norwich"],
-    "Plymouth State University": ["Plymouth State", "PSU"],
+    "Plymouth State University": ["Plymouth State", "PSU", "Plymouth"],
     "Rhode Island College": ["Rhode Island", "RIC"],
     "Roger Williams University": ["Roger Williams", "RWU"],
     "Springfield College": ["Springfield"],
@@ -219,7 +219,7 @@ SCHOOL_ALIASES = {
     "St. John's Fisher University": ["St. John's Fisher", "SJFC"],
     "Stevens Institute of Technology": ["Stevens Tech", "Stevens"],
     "SUNY - Brockport": ["Brockport", "SUNY Brockport"],
-    "SUNY - Cortland": ["Cortland", "SUNY Cortland"],
+    "SUNY - Cortland": ["Cortland", "SUNY Cortland", "Cortland State"],
     "SUNY - Oneonta": ["Oneonta", "SUNY Oneonta"],
     "SUNY - Oswego": ["Oswego", "SUNY Oswego"],
     "University of Pittsburgh at Bradford": ["Pitt Bradford", "University of Pittsburgh Bradford"],
@@ -477,8 +477,10 @@ class Match(db.Model):
     sudden_victory = db.Column(db.Boolean, default=False)
     double_overtime = db.Column(db.Boolean, default=False)  # New field for 2-OT win
     medical_forfeit = db.Column(db.Boolean, default=False)  # New field for Medical Forfeit win
+    disqualification = db.Column(db.Boolean, default=False)  # New field for disqualification win
 
     def calculate_win_type(self):
+        # Recognize both 'Sudden Victory' and 'SV-1' as valid types
         if self.fall:
             self.win_type = 'Fall'
         elif self.technical_fall:
@@ -486,11 +488,13 @@ class Match(db.Model):
         elif self.injury_default:
             self.win_type = 'Injury Default'
         elif self.sudden_victory:
-            self.win_type = 'SV-1'
+            self.win_type = 'SV-1'  # Sudden Victory will be represented as 'SV-1'
         elif self.double_overtime:
             self.win_type = '2-OT'  # Handle Double Overtime
         elif self.medical_forfeit:
             self.win_type = 'Medical Forfeit'  # Handle Medical Forfeit
+        elif self.disqualification:
+            self.win_type = 'Disqualification'  # Handle disqualification
         else:
             score_diff = abs(self.wrestler1_score - self.wrestler2_score)
             if score_diff >= 15:
@@ -509,9 +513,10 @@ class Match(db.Model):
         self.major_decision = self.win_type == 'Major Decision'
         self.decision = self.win_type == 'Decision'
         self.injury_default = self.win_type == 'Injury Default'
-        self.sudden_victory = self.win_type == 'SV-1'
+        self.sudden_victory = self.win_type in ['SV-1', 'Sudden Victory']  # Both "SV-1" and "Sudden Victory"
         self.double_overtime = self.win_type == '2-OT'
         self.medical_forfeit = self.win_type == 'Medical Forfeit'
+        self.disqualification = self.win_type == 'Disqualification'
 
     def to_dict(self):
         return {
@@ -532,6 +537,7 @@ class Match(db.Model):
             'sudden_victory': self.sudden_victory,
             'double_overtime': self.double_overtime,
             'medical_forfeit': self.medical_forfeit,
+            'disqualification': self.disqualification,  # Include disqualification in dictionary output
             'season_id': self.season_id  # Include the season in match details
         }
 
@@ -1651,9 +1657,10 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 sudden_victory = False
                 double_overtime = False  # New flag for 2-OT
                 medical_forfeit = False  # New flag for Medical Forfeit
+                disqualification = False  # New flag for Disqualification
                 match_time = None
 
-                # Handle win types and match times
+                # Handle win types and match times (Update: Recognizing "Sudden Victory" and "SV-1" as the same)
                 if win_type == 'Decision':
                     decision = True
                 elif win_type == 'Major Decision':
@@ -1682,13 +1689,13 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                         detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Injury Default' win type.")
                         row_errors += 1
                         continue
-                elif win_type == 'SV-1':  # Sudden Victory - 1st Period
+                elif win_type.lower() in ['sv-1', 'sudden victory']:  # Sudden Victory / SV-1 (handle both)
                     sudden_victory = True
                     if row['Match_Time'].strip():
                         try:
                             match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
                         except ValueError:
-                            detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'SV-1' win type.")
+                            detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Sudden Victory' win type.")
                             row_errors += 1
                             continue
                 elif win_type == '2-OT':  # Double Overtime
@@ -1697,6 +1704,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 elif win_type == 'Medical Forfeit':  # Medical Forfeit
                     medical_forfeit = True
                     # No need for match time for forfeits
+                elif win_type == 'Disqualification':  # Handle Disqualification
+                    disqualification = True
                 else:
                     detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'.")
                     row_errors += 1
@@ -1789,6 +1798,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     sudden_victory=sudden_victory,
                     double_overtime=double_overtime,  # New field for 2-OT
                     medical_forfeit=medical_forfeit,  # New field for Medical Forfeit
+                    disqualification=disqualification,  # New field for Disqualification
                     season_id=season.id  # Assign correct season
                 )
                 db.session.add(new_match)
@@ -1856,67 +1866,6 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
     except Exception as e:
         flash(f"An error occurred during CSV processing: {str(e)}", 'error')
         logging.error(f"An error occurred during CSV processing: {str(e)}")
-        return False
-
-
-def revert_csv_upload(report_id):
-    try:
-        # Fetch the CSV upload report by its ID
-        upload_report = CSVUploadReport.query.get(report_id)
-        if not upload_report:
-            flash(f"No upload report found with ID {report_id}", 'error')
-            return False
-
-        # Load the match IDs from the report
-        match_ids = json.loads(upload_report.match_ids)
-
-        # Fetch all matches to be deleted so we can determine affected wrestlers
-        matches = Match.query.filter(Match.id.in_(match_ids)).all()
-
-        if not matches:
-            flash(f"No matches found for CSV upload report {report_id}", 'error')
-            return False
-
-        # Identify affected wrestlers
-        affected_wrestlers = set()
-        for match in matches:
-            affected_wrestlers.add(match.wrestler1)
-            affected_wrestlers.add(match.wrestler2)
-
-        # Delete all matches associated with the upload
-        Match.query.filter(Match.id.in_(match_ids)).delete(synchronize_session=False)
-
-        # Mark the report as reverted
-        upload_report.is_reverted = True
-
-        # Commit the changes (match deletions and upload report update)
-        db.session.commit()
-
-        # Recalculate Elo, RPI, Hybrid Score, and Dominance Score for affected wrestlers
-        for wrestler in affected_wrestlers:
-            # Check if the wrestler has any remaining matches
-            remaining_matches = wrestler.matches_as_wrestler1.count() + wrestler.matches_as_wrestler2.count()
-            if remaining_matches == 0:
-                # If no remaining matches, delete the wrestler
-                db.session.delete(wrestler)
-                logger.info(f"Wrestler {wrestler.name} deleted as they have no remaining matches.")
-            else:
-                # If the wrestler still has matches, recalculate their stats
-                recalculate_elo(wrestler)
-                recalculate_rpi(wrestler)
-                recalculate_hybrid(wrestler)
-                recalculate_dominance(wrestler)
-
-        # Commit recalculated wrestler stats and any deletions
-        db.session.commit()
-
-        flash(f"Successfully reverted CSV upload {report_id}. Matches deleted: {len(match_ids)}.", 'success')
-        return True
-
-    except Exception as e:
-        db.session.rollback()  # Rollback if there's an error
-        flash(f"An error occurred while reverting CSV upload: {str(e)}", 'error')
-        logging.error(f"An error occurred while reverting CSV upload: {str(e)}")
         return False
 
 
