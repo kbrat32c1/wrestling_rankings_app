@@ -17,9 +17,14 @@ import os
 
 app = Flask(__name__)
 
-# Set up database URI and configurations
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'instance', 'wrestling.db')
+# Environment variable to detect local or production environment
+if os.getenv('FLASK_ENV') == 'development':
+    # Use external database URL for local development
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a.ohio-postgres.render.com/ncaa_division_3_wrestlers'
+else:
+    # Use internal database URL for production (on Render)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a/ncaa_division_3_wrestlers'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['SECRET_KEY'] = 'your_secret_key_here'
