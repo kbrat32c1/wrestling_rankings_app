@@ -347,12 +347,15 @@ class Wrestler(db.Model):
     weight_class = db.Column(db.Integer, nullable=False)
     wins = db.Column(db.Integer, default=0)
     losses = db.Column(db.Integer, default=0)
+    falls = db.Column(db.Integer, default=0)  # Field for falls
+    tech_falls = db.Column(db.Integer, default=0)  # Field for technical falls
+    major_decisions = db.Column(db.Integer, default=0)  # Field for major decisions
     elo_rating = db.Column(db.Float, default=1500)
     rpi = db.Column(db.Float, default=0)
     dominance_score = db.Column(db.Float, nullable=False, default=0.0)
     season_id = db.Column(db.Integer, db.ForeignKey('season.id'), nullable=False)
     graduating = db.Column(db.Boolean, default=False)  # Field for graduating status
-    year_in_school = db.Column(db.String(20), nullable=True, default='Freshman')  # New field for tracking year in school
+    year_in_school = db.Column(db.String(20), nullable=True, default='Freshman')  # Field for year in school
 
     # Relationship to Season
     season = db.relationship('Season', backref='wrestlers')
@@ -370,21 +373,6 @@ class Wrestler(db.Model):
         if self.elo_rating is not None and self.rpi is not None:
             return (0.5 * self.elo_rating) + (0.5 * self.rpi)
         return None
-
-    @property
-    def falls(self):
-        return self.matches_as_wrestler1.filter_by(win_type='Fall').count() + \
-               self.matches_as_wrestler2.filter_by(win_type='Fall').count()
-
-    @property
-    def tech_falls(self):
-        return self.matches_as_wrestler1.filter_by(win_type='Technical Fall').count() + \
-               self.matches_as_wrestler2.filter_by(win_type='Technical Fall').count()
-
-    @property
-    def major_decisions(self):
-        return self.matches_as_wrestler1.filter_by(win_type='Major Decision').count() + \
-               self.matches_as_wrestler2.filter_by(win_type='Major Decision').count()
 
     def calculate_dominance_score(self):
         matches = self.matches_as_wrestler1.all() + self.matches_as_wrestler2.all()
@@ -440,6 +428,18 @@ class Wrestler(db.Model):
         elif self.year_in_school == 'Senior':
             self.graduate()
 
+    def increment_falls(self):
+        """Increment the falls count."""
+        self.falls += 1
+
+    def increment_tech_falls(self):
+        """Increment the technical falls count."""
+        self.tech_falls += 1
+
+    def increment_major_decisions(self):
+        """Increment the major decisions count."""
+        self.major_decisions += 1
+
 
 
 class Match(db.Model):
@@ -479,8 +479,8 @@ class Match(db.Model):
     double_overtime = db.Column(db.Boolean, default=False)  # New field for 2-OT win
     medical_forfeit = db.Column(db.Boolean, default=False)  # New field for Medical Forfeit win
     disqualification = db.Column(db.Boolean, default=False)  # New field for disqualification win
-    tb1 = db.Column(db.Boolean, default=False)  # Field for Tiebreaker 1 win
-    tb2 = db.Column(db.Boolean, default=False)  # Field for Tiebreaker 2 win
+    tiebreaker_1 = db.Column(db.Boolean, default=False)  # Field for Tiebreaker 1 win
+    tiebreaker_2 = db.Column(db.Boolean, default=False)  # Field for Tiebreaker 2 win
 
     def calculate_win_type(self):
         # Recognize variations of 'Sudden Victory', 'Double Overtime', 'Tiebreaker' etc.
@@ -494,9 +494,9 @@ class Match(db.Model):
             self.win_type = 'SV-1'  # Sudden Victory will be represented as 'SV-1'
         elif self.double_overtime:
             self.win_type = '2-OT'  # Handle Double Overtime
-        elif self.tb1:
+        elif self.tiebreaker_1:
             self.win_type = 'TB-1'  # Handle Tiebreaker 1
-        elif self.tb2:
+        elif self.tiebreaker_2:
             self.win_type = 'TB-2'  # Handle Tiebreaker 2
         elif self.medical_forfeit:
             self.win_type = 'Medical Forfeit'  # Handle Medical Forfeit
@@ -522,8 +522,8 @@ class Match(db.Model):
         self.injury_default = self.win_type == 'Injury Default'
         self.sudden_victory = self.win_type in ['SV-1', 'Sudden Victory', 'Sudden Victory - 1']  # Include variations
         self.double_overtime = self.win_type in ['2-OT', 'Double Overtime']
-        self.tb1 = self.win_type in ['TB-1', 'Tiebreaker - 1']
-        self.tb2 = self.win_type in ['TB-2', 'Tiebreaker - 2 (Riding Time)']
+        self.tiebreaker_1 = self.win_type in ['TB-1', 'Tiebreaker - 1']
+        self.tiebreaker_2 = self.win_type in ['TB-2', 'Tiebreaker - 2 (Riding Time)']
         self.medical_forfeit = self.win_type == 'Medical Forfeit'
         self.disqualification = self.win_type == 'Disqualification'
 
@@ -545,8 +545,8 @@ class Match(db.Model):
             'injury_default': self.injury_default,
             'sudden_victory': self.sudden_victory,
             'double_overtime': self.double_overtime,
-            'tb1': self.tb1,
-            'tb2': self.tb2,
+            'tiebreaker_1': self.tiebreaker_1,
+            'tiebreaker_2': self.tiebreaker_2,
             'medical_forfeit': self.medical_forfeit,
             'disqualification': self.disqualification,  # Include disqualification in dictionary output
             'season_id': self.season_id  # Include the season in match details
@@ -625,27 +625,41 @@ def update_elo(rating, expected, actual, k_factor=32):
     return rating + k_factor * (actual - expected)
 
 def recalculate_elo(wrestler_id, season_id):
-    wrestler = Wrestler.query.get(wrestler_id)  # Fetch the wrestler by ID
+    # Fetch the wrestler by ID
+    wrestler = Wrestler.query.get(wrestler_id)
+    if not wrestler:
+        logger.error(f"Wrestler with ID {wrestler_id} not found.")
+        return
+
     logger.info(f"Recalculating Elo for {wrestler.name}")
+
+    # Initialize the wrestler's Elo rating
     wrestler.elo_rating = 1500
+
+    # Filter matches by the specified season
     matches = Match.query.filter(
         (Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id),
         Match.season_id == season_id
-    ).all()  # Filter matches by the specified season
+    ).all()
 
+    # If no matches found, log and return
     if not matches:
         logger.info(f"No matches found for {wrestler.name} in season {season_id}. Elo remains {wrestler.elo_rating}")
         return
 
+    # Iterate through the matches to recalculate the Elo rating
     for match in matches:
         opponent = match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
         expected = expected_score(wrestler.elo_rating, opponent.elo_rating)
         actual = 1 if match.winner_id == wrestler.id else 0
+        
+        # Update the wrestler's Elo rating
         wrestler.elo_rating = update_elo(wrestler.elo_rating, expected, actual)
-        logger.info(f"Match on {match.date} against {opponent.name}: expected {expected:.4f}, actual {actual}. Updated Elo: {wrestler.elo_rating:.2f}")
+        
+        logger.info(f"Match on {match.date.strftime('%Y-%m-%d')} against {opponent.name}: expected {expected:.4f}, actual {actual}. Updated Elo: {wrestler.elo_rating:.2f}")
 
+    # Commit the changes to the database
     db.session.commit()
-
 
 
 import logging
@@ -694,7 +708,7 @@ def recalculate_rpi(wrestler_id, season_id):
     logger.info(f"RPI recalculated for {wrestler.name}: {rpi:.3f}")
     return rpi
 
-def recalculate_hybrid(wrestler_id):
+def recalculate_hybrid(wrestler_id, season_id):
     wrestler = Wrestler.query.get(wrestler_id)
     """
     Recalculate the hybrid score for the given wrestler.
@@ -703,13 +717,15 @@ def recalculate_hybrid(wrestler_id):
     This function does not need to set the hybrid_score directly as it is a property.
     """
     if wrestler.elo_rating is not None and wrestler.rpi is not None:
-        hybrid_score = (0.5 * wrestler.elo_rating) + (0.5 * wrestler.rpi)
+        # Calculate the hybrid score using the property method
+        hybrid_score = wrestler.hybrid_score  # Automatically uses the latest Elo and RPI values
         logger.info(f"{wrestler.name}: Hybrid Score recalculated to {hybrid_score}")
-        wrestler.hybrid_score = hybrid_score  # Save it back to the wrestler
     else:
         logger.info(f"{wrestler.name}: Hybrid Score cannot be calculated due to missing values")
     
     db.session.commit()
+
+
 
 # Helper function to calculate Dominance Score
 def calculate_dominance_score(wrestler_id, season_id):
@@ -1539,19 +1555,19 @@ def delete_wrestler(wrestler_id):
         else:
             opponent.wins -= 1
 
-        # Recalculate stats for opponent
-        recalculate_elo(wrestler1.id, season_id)
-        recalculate_elo(wrestler2.id, season_id)
-        recalculate_rpi(wrestler1.id, season_id)
-        recalculate_rpi(wrestler2.id, season_id)
-        recalculate_hybrid(wrestler1.id, season_id)
-        recalculate_hybrid(wrestler2.id, season_id)
-        recalculate_dominance(wrestler1.id, season_id)
-        recalculate_dominance(wrestler2.id, season_id)
-        # After committing the match
-        recalculate_wrestler_stats(wrestler1.id, season_id)
-        recalculate_wrestler_stats(wrestler2.id, season_id)
+        # Determine the current season based on the match date
+        season_id = match.season_id  # Assuming each match has a season_id field
 
+        # Recalculate stats for opponent
+        recalculate_elo(opponent.id, season_id)  # Use opponent's ID
+        recalculate_rpi(opponent.id, season_id)
+        recalculate_hybrid(opponent.id, season_id)
+        recalculate_dominance(opponent.id, season_id)
+
+        # Recalculate wrestler stats for opponents
+        recalculate_wrestler_stats(opponent.id, season_id)
+
+        # Delete the match from the database
         db.session.delete(match)
 
     # Delete the wrestler after processing their matches
@@ -1774,6 +1790,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     detailed_feedback.append(f"Row {row_num}: No matching season found for date {match_date}.")
                     row_errors += 1
                     continue
+                
+                season_id = season.id  # Define season_id here
 
                 # Initialize flags for different types of wins
                 decision = False
@@ -1812,12 +1830,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                         continue
                 elif win_type in ['injury default', 'injury']:
                     injury_default = True
-                    try:
-                        match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
-                    except ValueError:
-                        detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Injury Default' win type.")
-                        row_errors += 1
-                        continue
+                    match_time = None  # Match time is not required for injury default
                 elif win_type in ['sv-1', 'sudden victory', 'sudden victory - 1']:
                     sudden_victory = True
                     if row['Match_Time'].strip():
@@ -1859,8 +1872,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 school2_name = normalize_school_name(school2_name)
 
                 # Get or create wrestlers for the season
-                wrestler1 = get_or_create_wrestler(wrestler1_name, school1_name, weight_class, season.id)
-                wrestler2 = get_or_create_wrestler(wrestler2_name, school2_name, weight_class, season.id)
+                wrestler1 = get_or_create_wrestler(wrestler1_name, school1_name, weight_class, season_id)
+                wrestler2 = get_or_create_wrestler(wrestler2_name, school2_name, weight_class, season_id)
 
                 # Normalize and strip names to ensure they are compared correctly (case-insensitive)
                 wrestler1_name_normalized = wrestler1.name.strip().lower()
@@ -1897,7 +1910,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     Match.wrestler1_score == wrestler1_score,
                     Match.wrestler2_score == wrestler2_score,
                     Match.win_type == win_type,
-                    Match.season_id == season.id,
+                    Match.season_id == season_id,
                     db.or_(
                         Match.match_time == match_time,
                         Match.match_time == None
@@ -1931,34 +1944,46 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     tiebreaker_2=tiebreaker_2,
                     medical_forfeit=medical_forfeit,
                     disqualification=disqualification,
-                    season_id=season.id
+                    season_id=season_id  # Use season_id
                 )
                 db.session.add(new_match)
                 db.session.flush()
 
                 match_ids.append(new_match.id)
 
-                # Update win/loss records
+                # Update win/loss records and increment falls/tech falls/major decisions
                 if winner == wrestler1:
                     wrestler1.wins += 1
                     wrestler2.losses += 1
+                    if fall:
+                        wrestler1.falls += 1
+                    if technical_fall:
+                        wrestler1.tech_falls += 1
+                    if major_decision:
+                        wrestler1.major_decisions += 1
                 else:
                     wrestler2.wins += 1
                     wrestler1.losses += 1
+                    if fall:
+                        wrestler2.falls += 1
+                    if technical_fall:
+                        wrestler2.tech_falls += 1
+                    if major_decision:
+                        wrestler2.major_decisions += 1
 
-                # Recalculate stats
-                recalculate_elo(wrestler1)
-                recalculate_elo(wrestler2)
-                recalculate_rpi(wrestler1)
-                recalculate_rpi(wrestler2)
-                recalculate_hybrid(wrestler1)
-                recalculate_hybrid(wrestler2)
-                recalculate_dominance(wrestler1)
-                recalculate_dominance(wrestler2)
+                # After adding the match and updating win/loss records
+                recalculate_elo(wrestler1.id, season_id)  # Ensure both wrestler and season_id are passed
+                recalculate_elo(wrestler2.id, season_id)  # Ensure both wrestler and season_id are passed
 
-                # Recalculate falls, tech falls, and major decisions
-                recalculate_wrestler_stats(wrestler1.id, season.id)
-                recalculate_wrestler_stats(wrestler2.id, season.id)
+                # Adjust the calls to include the wrestler ID
+                recalculate_rpi(wrestler1.id, season_id)  # Pass both wrestler ID and season ID
+                recalculate_rpi(wrestler2.id, season_id)  # Pass both wrestler ID and season ID
+
+                recalculate_hybrid(wrestler1.id, season_id)  # Pass both wrestler ID and season ID
+                recalculate_hybrid(wrestler2.id, season_id)  # Pass both wrestler ID and season ID
+
+                recalculate_dominance(wrestler1.id, season_id)  # Pass both wrestler ID and season ID
+                recalculate_dominance(wrestler2.id, season_id)  # Pass both wrestler ID and season ID
 
                 # Commit after each match is successfully added
                 db.session.commit()
@@ -2000,25 +2025,6 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
         logging.error(f"An error occurred during CSV processing: {str(e)}")
         return False
 
-
-
-def save_csv_report(upload_date, report_details, total_matches, added_matches, skipped_duplicates, row_errors, match_ids):
-    # Create a new CSVUploadReport object and save it to the database
-    new_report = CSVUploadReport(
-        uploaded_at=upload_date,
-        total_matches=total_matches,
-        added_matches=added_matches,
-        skipped_duplicates=skipped_duplicates,
-        row_errors=row_errors,
-        detailed_feedback=json.dumps(report_details),  # Store feedback as JSON
-        match_ids=json.dumps(match_ids)  # Store match IDs as JSON
-    )
-
-    # Add the report to the database
-    db.session.add(new_report)
-    db.session.commit()
-
-   
 
 
 @app.route('/csv_reports', defaults={'page': 1}, methods=['GET'])
