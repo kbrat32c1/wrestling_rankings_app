@@ -822,18 +822,13 @@ def get_stat_leaders(stat_column, season_id=None, limit=10):
 
 
 # Utility functions and decorators (admin_required goes here)
-
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Check if the user is logged in and is an admin
-        if not session.get('is_admin'):  # Ensure this checks how you've set the admin session
-            flash('You do not have permission to access this page.', 'danger')
-            return redirect(url_for('home'))  # Redirect to home if not an admin
+        if not current_user.is_authenticated or not current_user.is_admin:
+            abort(403)  # Forbidden
         return f(*args, **kwargs)
     return decorated_function
-
-
 
 def normalize_school_name(school_name):
     """
@@ -2535,23 +2530,22 @@ def login():
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
 
+        # Check if the user exists and the password is correct
         if user and user.check_password(password):
-            login_user(user)
-            session['is_admin'] = True  # Set session variable to indicate admin login
+            login_user(user)  # Logs the user in
             flash('Logged in successfully!', 'success')
-            return redirect(url_for('home'))
+            return redirect(url_for('home'))  # Redirect after successful login
         else:
             flash('Invalid username or password', 'danger')
 
     return render_template('login.html')
 
-
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    session.pop('is_admin', None)  # Remove admin session variable
     flash('You have been logged out.', 'success')
+    app.logger.info('User logged out successfully.')  # Log the logout action
     return redirect(url_for('home'))
 
 
