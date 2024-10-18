@@ -49,65 +49,72 @@
     {% endif %}
 </form>
 
-{% if wrestlers %} <!-- Check if there are wrestlers -->
-    <!-- Form for bulk deletion of wrestlers, only visible to admins -->
-    {% if is_admin %} <!-- Check if the user is an admin -->
-    <form method="POST" action="{{ url_for('bulk_delete_wrestlers') }}" class="mb-3">
-        <input type="hidden" name="season_id" value="{{ selected_season_id }}"> <!-- Ensure season_id is sent -->
-        <input type="hidden" name="weight_class" value="{{ weight_class }}"> <!-- Ensure weight_class is sent -->
-        
-        <div class="table-responsive">
-            <table class="table table-striped table-light table-bordered">
-                <thead class="thead-dark">
-                    <tr>
-                        <th>Select</th>
-                        <th>Rank</th>
-                        <th>Wrestler</th>
-                        <th>School</th>
-                        <th>Region</th>
-                        <th>Conference</th>
-                        <th>Wins</th>
-                        <th>Losses</th>
-                        <th>Win %</th>
-                        <th>
-                            <a href="?sort_by=elo&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Elo Rating</a>
-                        </th>
-                        <th>
-                            <a href="?sort_by=rpi&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">RPI</a>
-                        </th>
-                        <th>
-                            <a href="?sort_by=hybrid&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Hybrid Score</a>
-                        </th>
-                        <th>
-                            <a href="?sort_by=dominance&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Dominance Score</a>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for wrestler in wrestlers %}
-                        <tr class="{% if loop.index is odd %}table-row-light{% else %}table-row-dark{% endif %}">
-                            <td><input type="checkbox" name="wrestler_ids" value="{{ wrestler.id }}"></td>
-                            <td>{{ loop.index }}</td>
-                            <td><a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}?season_id={{ selected_season_id }}">{{ wrestler.name }}</a></td> <!-- Passing season_id -->
-                            <td>{{ wrestler.school }}</td>
-                            <td>{{ wrestler.region }}</td>
-                            <td>{{ wrestler.conference }}</td>
-                            <td>{{ wrestler.wins }}</td> <!-- Ensure wins are updated -->
-                            <td>{{ wrestler.losses }}</td> <!-- Ensure losses are updated -->
-                            <td>{{ "%.1f"|format(wrestler.win_percentage) }}%</td>
-                            <td>{{ "%.2f"|format(wrestler.elo_rating) }}</td>
-                            <td>{{ "%.3f"|format(wrestler.rpi if wrestler.rpi is not none else 0.000) }}</td>
-                            <td>{{ "%.3f"|format(wrestler.hybrid_score if wrestler.hybrid_score is not none else 0) }}</td>
-                            <td>{{ "%.2f"|format(wrestler.dominance_score) }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+{% if wrestlers %}
+    <p>Number of wrestlers: {{ wrestlers|length }}</p> <!-- Debug output for number of wrestlers -->
 
+    <!-- Display wrestlers, accessible to all users -->
+    <div class="table-responsive">
+        <table class="table table-striped table-light table-bordered">
+            <thead class="thead-dark">
+                <tr>
+                    {% if is_admin %}
+                    <th>Select</th>
+                    {% endif %}
+                    <th>Rank</th>
+                    <th>Wrestler</th>
+                    <th>School</th>
+                    <th>Region</th>
+                    <th>Conference</th>
+                    <th>Wins</th>
+                    <th>Losses</th>
+                    <th>Win %</th>
+                    <th>
+                        <a href="?sort_by=elo&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Elo Rating</a>
+                    </th>
+                    <th>
+                        <a href="?sort_by=rpi&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">RPI</a>
+                    </th>
+                    <th>
+                        <a href="?sort_by=hybrid&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Hybrid Score</a>
+                    </th>
+                    <th>
+                        <a href="?sort_by=dominance&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Dominance Score</a>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for wrestler in wrestlers %}
+                    <tr class="{% if loop.index is odd %}table-row-light{% else %}table-row-dark{% endif %}">
+                        {% if is_admin %}
+                        <td><input type="checkbox" name="wrestler_ids" value="{{ wrestler.id }}"></td>
+                        {% endif %}
+                        <td>{{ loop.index }}</td>
+                        <td><a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}?season_id={{ selected_season_id }}">{{ wrestler.name }}</a></td>
+                        <td>{{ wrestler.school }}</td>
+                        <td>{{ wrestler.region }}</td>
+                        <td>{{ wrestler.conference }}</td>
+                        <td>{{ wrestler.wins }}</td>
+                        <td>{{ wrestler.losses }}</td>
+                        <td>{{ "%.1f"|format(wrestler.win_percentage) }}%</td>
+                        <td>{{ "%.2f"|format(wrestler.elo_rating) }}</td>
+                        <td>{{ "%.3f"|format(wrestler.rpi if wrestler.rpi is not none else 0.000) }}</td>
+                        <td>{{ "%.3f"|format(wrestler.hybrid_score if wrestler.hybrid_score is not none else 0) }}</td>
+                        <td>{{ "%.2f"|format(wrestler.dominance_score) }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Form for bulk deletion of wrestlers, only visible to admins -->
+    {% if is_admin %}
+    <form method="POST" action="{{ url_for('bulk_delete_wrestlers') }}" class="mb-3">
+        <input type="hidden" name="season_id" value="{{ selected_season_id }}">
+        <input type="hidden" name="weight_class" value="{{ weight_class }}">
+        
         <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete the selected wrestlers?');">Delete Selected Wrestlers</button>
     </form>
-    {% endif %} <!-- End admin check -->
+    {% endif %}
 {% else %}
     <p>No wrestlers found for this weight class.</p>
 {% endif %}
@@ -115,17 +122,14 @@
 
 <!-- Add Mobile-Friendly Styles -->
 <style>
-    /* Ensure table is scrollable on small screens */
     .table-responsive {
         overflow-x: auto;
     }
 
-    /* Center align text for mobile */
     .form-inline label {
         white-space: nowrap;
     }
 
-    /* Adjust font sizes and padding for smaller screens */
     @media (max-width: 767px) {
         h1, h2, h3 {
             font-size: 1.25rem;

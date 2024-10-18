@@ -997,9 +997,9 @@ def home():
 
 @app.route('/rankings/<int:weight_class>')
 def rankings(weight_class):
-    sort_by = request.args.get('sort_by', 'elo')  # Default to Elo sorting
-    selected_region = request.args.get('region', None)
-    selected_conference = request.args.get('conference', None)
+    import time
+    start_time = time.time()  # Start the timer for performance measurement
+
     selected_season_id = request.args.get('season_id')  # Get the selected season ID from the query string
 
     # Ensure there's a valid selected season
@@ -1012,29 +1012,47 @@ def rankings(weight_class):
         return "Selected season not found", 404  # Error handling
 
     # Fetch all wrestlers for the given weight class and season
-    wrestlers = Wrestler.query.filter_by(weight_class=weight_class, season_id=selected_season_id).all()
-    print(f"Wrestlers found: {len(wrestlers)}")  # Debug output
+    wrestlers_query = Wrestler.query.filter_by(weight_class=weight_class, season_id=selected_season_id)
+    wrestlers = wrestlers_query.all()
 
+    # Log the number of wrestlers found
+    print(f"Wrestlers found: {len(wrestlers)}")
+    
     # Assign region and conference based on the school
     for wrestler in wrestlers:
         wrestler_details = D3_WRESTLING_SCHOOLS.get(wrestler.school)
         if wrestler_details:
-            wrestler.region = wrestler_details["region"]
-            wrestler.conference = wrestler_details["conference"]
+            wrestler.region = wrestler_details.get("region", "Unknown")
+            wrestler.conference = wrestler_details.get("conference", "Unknown")
         else:
             wrestler.region = "Unknown"
             wrestler.conference = "Unknown"
             print(f"School '{wrestler.school}' not found in D3_WRESTLING_SCHOOLS")
 
+    # Print wrestler details for debugging
+    for wrestler in wrestlers:
+        print(f"Wrestler: {wrestler.name}, School: {wrestler.school}, Region: {wrestler.region}, Conference: {wrestler.conference}")
+
+    sort_by = request.args.get('sort_by', 'elo')  # Default to Elo sorting
+    selected_region = request.args.get('region', None)
+    selected_conference = request.args.get('conference', None)
+
     # Get unique regions and conferences from D3_WRESTLING_SCHOOLS
     regions = sorted(set(school_data["region"] for school_data in D3_WRESTLING_SCHOOLS.values()))
     conferences = sorted(set(school_data["conference"] for school_data in D3_WRESTLING_SCHOOLS.values()))
 
-    # Filter by selected region or conference if applicable
+    # Filter by selected region if applicable
     if selected_region:
-        wrestlers = [wrestler for wrestler in wrestlers if str(wrestler.region) == selected_region]
+        wrestlers = [wrestler for wrestler in wrestlers if wrestler.region == int(selected_region)]
+        print(f"Filtered by region: {selected_region}, Wrestlers count: {len(wrestlers)}")
+
+    # Filter by selected conference if applicable
     if selected_conference:
         wrestlers = [wrestler for wrestler in wrestlers if wrestler.conference == selected_conference]
+        print(f"Filtered by conference: {selected_conference}, Wrestlers count: {len(wrestlers)}")
+
+    # Ensure that we still have wrestlers after filtering
+    print(f"Total wrestlers after filtering: {len(wrestlers)}")
 
     # Calculate wins and losses for each wrestler
     for wrestler in wrestlers:
@@ -1072,9 +1090,9 @@ def rankings(weight_class):
     elif sort_by == 'dominance':
         wrestlers = sorted(wrestlers, key=lambda w: (w.dominance_score is None, w.dominance_score), reverse=True)
     elif sort_by == 'region':
-        wrestlers = sorted(wrestlers, key=lambda w: w.region)
+        wrestlers = sorted(wrestlers, key=lambda w: (w.region is None, w.region))
     elif sort_by == 'conference':
-        wrestlers = sorted(wrestlers, key=lambda w: w.conference)
+        wrestlers = sorted(wrestlers, key=lambda w: (w.conference is None, w.conference))
     else:
         wrestlers = sorted(wrestlers, key=lambda w: (w.elo_rating is None, w.elo_rating), reverse=True)
 
@@ -1084,6 +1102,12 @@ def rankings(weight_class):
 
     # Clear filter flag
     clear_filters = bool(selected_region or selected_conference)
+
+    # Check if the user is an admin
+    is_admin = current_user.is_authenticated and current_user.is_admin  # Adjust based on your auth system
+
+    # Log query time for performance analysis
+    print(f"Query time: {time.time() - start_time:.2f} seconds")  # Log query time
 
     return render_template('rankings.html',
                            weight_class=weight_class,
@@ -1095,7 +1119,8 @@ def rankings(weight_class):
                            regions=regions,
                            conferences=conferences,
                            selected_season_id=selected_season_id,
-                           selected_season=selected_season)
+                           selected_season=selected_season,
+                           is_admin=is_admin)  # Pass the is_admin flag
 
 
 
