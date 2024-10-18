@@ -618,6 +618,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Elo rating functions
+import math
+import logging
+
+logger = logging.getLogger(__name__)
+
 def expected_score(rating_a, rating_b):
     return 1 / (1 + math.pow(10, (rating_b - rating_a) / 400))
 
@@ -633,23 +638,27 @@ def recalculate_elo(wrestler_id, season_id):
 
     logger.info(f"Recalculating Elo for {wrestler.name}")
 
-    # Initialize the wrestler's Elo rating
-    wrestler.elo_rating = 1500
-
-    # Filter matches by the specified season
+    # Initialize the wrestler's Elo rating based on the number of matches
     matches = Match.query.filter(
         (Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id),
         Match.season_id == season_id
     ).all()
 
-    # If no matches found, log and return
     if not matches:
-        logger.info(f"No matches found for {wrestler.name} in season {season_id}. Elo remains {wrestler.elo_rating}")
+        # If no matches are found, set Elo rating to 1500
+        wrestler.elo_rating = 1500
+        logger.info(f"No matches found for {wrestler.name}. Setting Elo to {wrestler.elo_rating}")
+        db.session.commit()
         return
 
     # Iterate through the matches to recalculate the Elo rating
     for match in matches:
         opponent = match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
+        
+        # Ensure opponent has a valid Elo rating
+        if opponent.elo_rating is None:
+            opponent.elo_rating = 1500  # Default Elo rating if not set
+
         expected = expected_score(wrestler.elo_rating, opponent.elo_rating)
         actual = 1 if match.winner_id == wrestler.id else 0
         
@@ -672,28 +681,40 @@ MIN_MATCHES = 3
 def calculate_rpi(wrestler_id, season_id):
     wrestler = Wrestler.query.get(wrestler_id)  # Fetch the wrestler by ID
 
+    # Check if the wrestler has enough matches for RPI calculation
     if wrestler.total_matches < MIN_MATCHES:
         logger.info(f"{wrestler.name} has fewer than {MIN_MATCHES} matches. RPI not calculated.")
         return 0, 0, 0, 0
 
     win_percentage = wrestler.wins / max(wrestler.total_matches, 1)
-    
+
     # Fetch matches for the specified season
     matches_as_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler_id, season_id=season_id).all()
     matches_as_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler_id, season_id=season_id).all()
-    
+
     opponents = set(match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
                     for match in matches_as_wrestler1 + matches_as_wrestler2)
 
-    opponent_win_percentage = (sum(opponent.wins / max(opponent.total_matches, 1) for opponent in opponents) / len(opponents)) if opponents else 0
+    # Calculate opponent win percentage
+    if opponents:
+        opponent_win_percentage = sum(opponent.wins / max(opponent.total_matches, 1) for opponent in opponents) / len(opponents)
+    else:
+        opponent_win_percentage = 0
 
     opponent_opponents = set()
     for opponent in opponents:
-        opponent_opponents.update(match.wrestler2 if match.wrestler1_id == opponent.id else match.wrestler1
-                                  for match in opponent.matches_as_wrestler1.all() + opponent.matches_as_wrestler2.all())
+        opponent_opponents.update(
+            match.wrestler2 if match.wrestler1_id == opponent.id else match.wrestler1
+            for match in opponent.matches_as_wrestler1.all() + opponent.matches_as_wrestler2.all()
+        )
 
-    opponent_opponent_win_percentage = (sum(opp_op.wins / max(opp_op.total_matches, 1) for opp_op in opponent_opponents) / len(opponent_opponents)) if opponent_opponents else 0
+    # Calculate opponent of opponent win percentage
+    if opponent_opponents:
+        opponent_opponent_win_percentage = sum(opp_op.wins / max(opp_op.total_matches, 1) for opp_op in opponent_opponents) / len(opponent_opponents)
+    else:
+        opponent_opponent_win_percentage = 0
 
+    # Calculate RPI
     rpi = 0.25 * win_percentage + 0.5 * opponent_win_percentage + 0.25 * opponent_opponent_win_percentage
 
     logger.info(f"RPI for {wrestler.name}: {rpi:.3f}")
@@ -730,14 +751,15 @@ def recalculate_hybrid(wrestler_id, season_id):
 # Helper function to calculate Dominance Score
 def calculate_dominance_score(wrestler_id, season_id):
     wrestler = Wrestler.query.get(wrestler_id)
+    
+    # Fetch matches for the wrestler in the specified season
     matches = Match.query.filter(
         (Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id),
         Match.season_id == season_id
     ).all()
-    
-    # Assign points based on the win type
+
     total_score = 0
-    match_count = len(matches)  # Count total matches upfront
+    match_count = len(matches)
 
     for match in matches:
         if match.winner_id == wrestler.id:
@@ -751,6 +773,7 @@ def calculate_dominance_score(wrestler_id, season_id):
                 total_score += 3
 
     if match_count == 0:
+        logger.info(f"{wrestler.name} has no matches. Dominance score set to 0.")
         return 0  # Avoid division by zero if the wrestler has no matches
 
     # Calculate the average dominance score across all matches
@@ -762,37 +785,14 @@ def recalculate_dominance(wrestler_id, season_id):
     """
     wrestler = Wrestler.query.get(wrestler_id)
 
-    # Fetch matches for the wrestler in the selected season
-    matches = Match.query.filter(
-        (Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id),
-        Match.season_id == season_id
-    ).all()
-    
-    # Assign points based on the win type
-    total_score = 0
-    match_count = len(matches)  # Count total matches upfront
-
-    for match in matches:
-        if match.winner_id == wrestler.id:
-            if match.win_type == 'Fall':
-                total_score += 6
-            elif match.win_type == 'Technical Fall':
-                total_score += 5
-            elif match.win_type == 'Major Decision':
-                total_score += 4
-            elif match.win_type == 'Decision':
-                total_score += 3
-
-    if match_count == 0:
-        wrestler.dominance_score = 0  # Set to 0 if no matches exist
-    else:
-        # Calculate the average dominance score across all matches
-        dominance_score = round(total_score / match_count, 2)  # Round to 2 decimal places for readability
-        wrestler.dominance_score = dominance_score  # Save it back to the wrestler
+    # Calculate dominance score
+    dominance_score = calculate_dominance_score(wrestler_id, season_id)
+    wrestler.dominance_score = dominance_score  # Save it back to the wrestler
 
     db.session.commit()  # Commit the changes to the database
+    logger.info(f"Dominance score for {wrestler.name} recalculated: {dominance_score}")
+    
     return wrestler.dominance_score
-
 
 
 
@@ -909,11 +909,18 @@ def calculate_wins_losses(wrestler_id, season_id):
 
 
 def recalculate_wrestler_stats(wrestler_id, season_id):
-    # Fetch matches for the wrestler in the selected season
-    matches_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler_id, season_id=season_id).all()
-    matches_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler_id, season_id=season_id).all()
+    # Fetch the wrestler first
+    wrestler = Wrestler.query.get(wrestler_id)
     
-    matches = matches_wrestler1 + matches_wrestler2
+    if not wrestler:  # Ensure wrestler exists
+        logging.warning(f"Wrestler with ID {wrestler_id} does not exist.")
+        return  # Early exit if wrestler does not exist
+
+    # Fetch matches for the wrestler in the selected season
+    matches = Match.query.filter(
+        (Match.wrestler1_id == wrestler_id) | (Match.wrestler2_id == wrestler_id),
+        Match.season_id == season_id
+    ).all()
 
     # Initialize stats
     falls = 0
@@ -931,13 +938,16 @@ def recalculate_wrestler_stats(wrestler_id, season_id):
                 major_decisions += 1
 
     # Update the wrestler's stats
-    wrestler = Wrestler.query.get(wrestler_id)
     wrestler.falls = falls
     wrestler.tech_falls = tech_falls
     wrestler.major_decisions = major_decisions
-    db.session.commit()  # Save changes
 
-
+    try:
+        db.session.commit()  # Save changes
+        logging.info(f"Wrestler {wrestler.name} (ID: {wrestler_id}) stats updated: Falls={falls}, Tech_Falls={tech_falls}, Major_Decisions={major_decisions}.")
+    except Exception as e:
+        logging.error(f"Error updating stats for wrestler {wrestler.name} (ID: {wrestler_id}): {str(e)}")
+        db.session.rollback()  # Rollback if there was an error
 
 
 
@@ -1794,26 +1804,28 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 season_id = season.id  # Define season_id here
 
                 # Initialize flags for different types of wins
-                decision = False
-                major_decision = False
-                fall = False
-                technical_fall = False
-                injury_default = False
-                sudden_victory = False
-                double_overtime = False
-                tiebreaker_1 = False
-                tiebreaker_2 = False
-                medical_forfeit = False
-                disqualification = False
                 match_time = None
+                win_flags = {
+                    "decision": False,
+                    "major_decision": False,
+                    "fall": False,
+                    "technical_fall": False,
+                    "injury_default": False,
+                    "sudden_victory": False,
+                    "double_overtime": False,
+                    "tiebreaker_1": False,
+                    "tiebreaker_2": False,
+                    "medical_forfeit": False,
+                    "disqualification": False,
+                }
 
                 # Handle win types and match times
                 if win_type in ['decision', 'dec']:
-                    decision = True
+                    win_flags["decision"] = True
                 elif win_type in ['major decision', 'major']:
-                    major_decision = True
+                    win_flags["major_decision"] = True
                 elif win_type in ['fall', 'pin']:
-                    fall = True
+                    win_flags["fall"] = True
                     try:
                         match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
                     except ValueError:
@@ -1821,7 +1833,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                         row_errors += 1
                         continue
                 elif win_type in ['technical fall', 'tech fall']:
-                    technical_fall = True
+                    win_flags["technical_fall"] = True
                     try:
                         match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
                     except ValueError:
@@ -1829,10 +1841,9 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                         row_errors += 1
                         continue
                 elif win_type in ['injury default', 'injury']:
-                    injury_default = True
-                    match_time = None  # Match time is not required for injury default
+                    win_flags["injury_default"] = True
                 elif win_type in ['sv-1', 'sudden victory', 'sudden victory - 1']:
-                    sudden_victory = True
+                    win_flags["sudden_victory"] = True
                     if row['Match_Time'].strip():
                         try:
                             match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
@@ -1841,15 +1852,15 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                             row_errors += 1
                             continue
                 elif win_type in ['2-ot', 'double overtime']:
-                    double_overtime = True
+                    win_flags["double_overtime"] = True
                 elif win_type in ['tb-1', 'tiebreaker - 1']:
-                    tiebreaker_1 = True
+                    win_flags["tiebreaker_1"] = True
                 elif win_type in ['tb-2', 'tiebreaker - 2', 'tiebreaker - 2 (riding time)']:
-                    tiebreaker_2 = True
+                    win_flags["tiebreaker_2"] = True
                 elif win_type in ['medical forfeit', 'med forfeit']:
-                    medical_forfeit = True
+                    win_flags["medical_forfeit"] = True
                 elif win_type in ['disqualification', 'dq']:
-                    disqualification = True
+                    win_flags["disqualification"] = True
                 else:
                     detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'.")
                     row_errors += 1
@@ -1933,17 +1944,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     wrestler1_score=wrestler1_score,
                     wrestler2_score=wrestler2_score,
                     match_time=match_time,
-                    decision=decision,
-                    major_decision=major_decision,
-                    fall=fall,
-                    technical_fall=technical_fall,
-                    injury_default=injury_default,
-                    sudden_victory=sudden_victory,
-                    double_overtime=double_overtime,
-                    tiebreaker_1=tiebreaker_1,
-                    tiebreaker_2=tiebreaker_2,
-                    medical_forfeit=medical_forfeit,
-                    disqualification=disqualification,
+                    **win_flags,  # Unpack win flags directly
                     season_id=season_id  # Use season_id
                 )
                 db.session.add(new_match)
@@ -1955,21 +1956,21 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 if winner == wrestler1:
                     wrestler1.wins += 1
                     wrestler2.losses += 1
-                    if fall:
-                        wrestler1.falls += 1
-                    if technical_fall:
-                        wrestler1.tech_falls += 1
-                    if major_decision:
-                        wrestler1.major_decisions += 1
+                    if win_flags["fall"]:
+                        wrestler1.increment_falls()
+                    if win_flags["technical_fall"]:
+                        wrestler1.increment_tech_falls()
+                    if win_flags["major_decision"]:
+                        wrestler1.increment_major_decisions()
                 else:
                     wrestler2.wins += 1
                     wrestler1.losses += 1
-                    if fall:
-                        wrestler2.falls += 1
-                    if technical_fall:
-                        wrestler2.tech_falls += 1
-                    if major_decision:
-                        wrestler2.major_decisions += 1
+                    if win_flags["fall"]:
+                        wrestler2.increment_falls()
+                    if win_flags["technical_fall"]:
+                        wrestler2.increment_tech_falls()
+                    if win_flags["major_decision"]:
+                        wrestler2.increment_major_decisions()
 
                 # After adding the match and updating win/loss records
                 recalculate_elo(wrestler1.id, season_id)  # Ensure both wrestler and season_id are passed
@@ -2024,7 +2025,6 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
         flash(f"An error occurred during CSV processing: {str(e)}", 'error')
         logging.error(f"An error occurred during CSV processing: {str(e)}")
         return False
-
 
 
 @app.route('/csv_reports', defaults={'page': 1}, methods=['GET'])
@@ -2207,12 +2207,14 @@ def export_matches():
 @admin_required
 def bulk_delete_wrestlers():
     wrestler_ids = request.form.getlist('wrestler_ids')  # Get the list of wrestler IDs from the form
+    selected_season_id = request.form.get('season_id')  # Fetch the selected season ID
 
     if not wrestler_ids:
         flash('No wrestlers selected for deletion.', 'warning')
         return redirect(url_for('rankings', weight_class=request.form.get('weight_class'))) 
 
-    wrestlers = Wrestler.query.filter(Wrestler.id.in_(wrestler_ids)).all()
+    # Ensure wrestlers are fetched from the current season
+    wrestlers = Wrestler.query.filter(Wrestler.id.in_(wrestler_ids), Wrestler.season_id == selected_season_id).all()
 
     # List to store deleted wrestler data
     deleted_wrestlers_data = []
@@ -2237,14 +2239,14 @@ def bulk_delete_wrestlers():
         ]
         deleted_wrestlers_data.append(wrestler_data)
 
-        # Delete the matches
+        # Delete the matches and update opponent stats
         for match in matches_as_wrestler1 + matches_as_wrestler2:
             opponent = match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
             if match.winner_id == wrestler.id:
                 opponent.losses -= 1
             else:
                 opponent.wins -= 1
-            recalculate_elo(opponent)
+            recalculate_elo(opponent.id, selected_season_id)  # Recalculate opponent's Elo after updating wins/losses
             db.session.delete(match)
 
         # Delete the wrestler
@@ -2259,8 +2261,21 @@ def bulk_delete_wrestlers():
 
     db.session.commit()
 
+    # Get the weight class of the first wrestler deleted
+    if wrestlers:
+        weight_class = wrestlers[0].weight_class
+
+        # Recalculate stats for all remaining wrestlers in the same weight class
+        remaining_wrestlers = Wrestler.query.filter_by(weight_class=weight_class, season_id=selected_season_id).all()
+        for wrestler in remaining_wrestlers:
+            recalculate_wrestler_stats(wrestler.id, selected_season_id)  # Recalculate all relevant stats for remaining wrestlers
+
+    # Optionally: Sort wrestlers based on updated stats for rankings
+    updated_rankings = Wrestler.query.filter_by(season_id=selected_season_id).order_by(Wrestler.elo_rating.desc()).all()  # Example: Sort by Elo rating
+
     flash(f'Successfully deleted {len(wrestlers)} wrestler(s) and their associated matches.', 'success')
-    return redirect(url_for('rankings', weight_class=wrestlers[0].weight_class if wrestlers else 125))
+    return redirect(url_for('rankings', weight_class=weight_class, updated_rankings=updated_rankings))
+
 
 @app.route('/clear_data', methods=['POST'])
 @login_required
