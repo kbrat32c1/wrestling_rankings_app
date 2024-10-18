@@ -952,10 +952,8 @@ def recalculate_wrestler_stats(wrestler_id, season_id):
 # Routes
 @app.route('/')
 def home():
-    # Check if the user is logged in
-    if not current_user.is_authenticated:
-        # Optionally flash a message for the user
-        flash('Please log in to access all features.', 'info')
+    # Check if the user is an admin
+    is_admin = current_user.is_authenticated and current_user.is_admin
 
     # Get all available seasons, ordered by start_date (or end_date if you prefer) descending
     seasons = Season.query.order_by(Season.start_date.desc()).all()
@@ -2533,6 +2531,10 @@ def login():
         # Check if the user exists and the password is correct
         if user and user.check_password(password):
             login_user(user)  # Logs the user in
+
+            # Set session variable to indicate admin status
+            session['is_admin'] = user.is_admin  # Assuming your User model has an is_admin field
+
             flash('Logged in successfully!', 'success')
             return redirect(url_for('home'))  # Redirect after successful login
         else:
@@ -2541,11 +2543,10 @@ def login():
     return render_template('login.html')
 
 @app.route('/logout')
-@login_required
 def logout():
-    logout_user()
-    flash('You have been logged out.', 'success')
-    app.logger.info('User logged out successfully.')  # Log the logout action
+    logout_user()  # Logs the user out
+    session.pop('is_admin', None)  # Remove the admin session variable
+    flash('Logged out successfully!', 'success')
     return redirect(url_for('home'))
 
 

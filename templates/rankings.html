@@ -68,10 +68,18 @@
                     <th>Wins</th>
                     <th>Losses</th>
                     <th>Win %</th>
-                    <th>Elo Rating</th>
-                    <th>RPI</th>
-                    <th>Hybrid Score</th>
-                    <th>Dominance Score</th>
+                    <th>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='elo', season_id=selected_season_id) }}">Elo Rating</a>
+                    </th>
+                    <th>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='rpi', season_id=selected_season_id) }}">RPI</a>
+                    </th>
+                    <th>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='hybrid', season_id=selected_season_id) }}">Hybrid Score</a>
+                    </th>
+                    <th>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='dominance', season_id=selected_season_id) }}">Dominance Score</a>
+                    </th>
                 </tr>
             </thead>
             <tbody>
