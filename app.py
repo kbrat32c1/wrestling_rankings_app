@@ -1004,16 +1004,16 @@ def rankings(weight_class):
 
     # Ensure there's a valid selected season
     if not selected_season_id:
-        # Default to the most recent season if no season is selected
         recent_season = Season.query.order_by(Season.start_date.desc()).first()
-        selected_season_id = recent_season.id
+        selected_season_id = recent_season.id if recent_season else None
 
     selected_season = Season.query.get(selected_season_id)
+    if not selected_season:
+        return "Selected season not found", 404  # Error handling
 
     # Fetch all wrestlers for the given weight class and season
-    wrestlers_query = Wrestler.query.filter_by(weight_class=weight_class, season_id=selected_season_id)
-
-    wrestlers = wrestlers_query.all()
+    wrestlers = Wrestler.query.filter_by(weight_class=weight_class, season_id=selected_season_id).all()
+    print(f"Wrestlers found: {len(wrestlers)}")  # Debug output
 
     # Assign region and conference based on the school
     for wrestler in wrestlers:
@@ -1046,7 +1046,6 @@ def rankings(weight_class):
     for wrestler in wrestlers:
         matches_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler.id, season_id=selected_season_id).all()
         matches_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler.id, season_id=selected_season_id).all()
-
         matches = matches_wrestler1 + matches_wrestler2
         total_points = 0
         total_matches = len(matches)
@@ -1097,7 +1096,6 @@ def rankings(weight_class):
                            conferences=conferences,
                            selected_season_id=selected_season_id,
                            selected_season=selected_season)
-
 
 
 
