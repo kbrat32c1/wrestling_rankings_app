@@ -2545,7 +2545,9 @@ def login():
 def logout():
     logout_user()
     flash('You have been logged out.', 'success')
+    app.logger.info('User logged out successfully.')  # Log the logout action
     return redirect(url_for('home'))
+
 
 
 # This function can be used to create a new admin user
