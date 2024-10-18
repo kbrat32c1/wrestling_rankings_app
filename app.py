@@ -1566,17 +1566,17 @@ def edit_wrestler(wrestler_id):
         db.session.commit()
 
         # Recalculate stats for the wrestler after editing
-        recalculate_elo(wrestler1.id, season_id)
-        recalculate_elo(wrestler2.id, season_id)
-        recalculate_rpi(wrestler1.id, season_id)
-        recalculate_rpi(wrestler2.id, season_id)
-        recalculate_hybrid(wrestler1.id, season_id)
-        recalculate_hybrid(wrestler2.id, season_id)
-        recalculate_dominance(wrestler1.id, season_id)
-        recalculate_dominance(wrestler2.id, season_id)
-        # After committing the match
-        recalculate_wrestler_stats(wrestler1.id, season_id)
-        recalculate_wrestler_stats(wrestler2.id, season_id)
+        recalculate_elo(wrestler.id, season_id)  # Use wrestler.id instead of wrestler1/wrestler2
+        recalculate_rpi(wrestler.id, season_id)
+        recalculate_hybrid(wrestler.id, season_id)
+        recalculate_dominance(wrestler.id, season_id)
+
+        # If you need to recalculate stats for other wrestlers based on the changes
+        # You should fetch them here if they are directly affected, otherwise, remove these lines
+        # Example if you need to get other wrestlers based on their weight class
+        related_wrestlers = Wrestler.query.filter_by(weight_class=wrestler.weight_class, season_id=season_id).all()
+        for related_wrestler in related_wrestlers:
+            recalculate_wrestler_stats(related_wrestler.id, season_id)
 
         # Commit all recalculations
         db.session.commit()
