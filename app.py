@@ -14,6 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import event
 import json
 import os
+from flask_login import LoginManager
 
 app = Flask(__name__)
 
@@ -949,18 +950,19 @@ def recalculate_wrestler_stats(wrestler_id, season_id):
 
 
 
+from flask import flash, redirect, url_for, render_template, request
+from flask_login import current_user  
+# Ensure you import current_user from Flask-Login
 
-
-# Routes
 @app.route('/')
 def home():
-    # Check if the user is an admin
+    # Check if the user is an admin using Flask-Login's current_user
     is_admin = current_user.is_authenticated and current_user.is_admin
 
-    # Get all available seasons, ordered by start_date (or end_date if you prefer) descending
+    # Get all available seasons, ordered by start_date descending
     seasons = Season.query.order_by(Season.start_date.desc()).all()
 
-    # Get the most recent season (the first in the ordered list) and set it as default
+    # Get the most recent season
     recent_season = seasons[0] if seasons else None
 
     # Get the selected season from the URL or default to the most recent season
@@ -970,11 +972,10 @@ def home():
         # Default to the most recent season if no season is selected
         selected_season_id = recent_season.id
 
-    # Fetch the selected season object, or default to recent season if not provided
+    # Fetch the selected season object
     selected_season = Season.query.get(selected_season_id) if selected_season_id else recent_season
 
     if not selected_season:
-        # If no season exists, redirect to manage seasons with a message
         flash('No seasons found. Please create a new season to proceed.', 'warning')
         return redirect(url_for('manage_seasons'))
 
@@ -982,7 +983,7 @@ def home():
     weight_class_data = []
 
     if selected_season:
-        # Fetch weight class data with respect to the selected season if it exists
+        # Fetch weight class data
         for weight in WEIGHT_CLASSES:
             wrestlers = Wrestler.query.filter_by(weight_class=weight, season_id=selected_season.id)\
                                       .order_by(Wrestler.elo_rating.desc())\
@@ -999,7 +1000,8 @@ def home():
                            seasons=seasons,
                            selected_season=selected_season,
                            selected_season_id=selected_season.id if selected_season else None,
-                           recent_season=recent_season)
+                           recent_season=recent_season,
+                           is_admin=is_admin)  # Added the comma here
 
 
 @app.route('/rankings/<int:weight_class>')
