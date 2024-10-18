@@ -90,6 +90,36 @@
     </div>
     {% endif %}
 
+    <!-- Manual Stats Update Section -->
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <div class="card mb-3" style="max-width: 900px; margin: 0 auto;">
+        <div class="card-header bg-dark text-white text-center">
+            <h4>Update Performance Stats</h4>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}?season_id={{ selected_season_id }}">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label for="falls">Falls</label>
+                        <input type="number" id="falls" name="falls" class="form-control" value="{{ falls }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="tech_falls">Technical Falls</label>
+                        <input type="number" id="tech_falls" name="tech_falls" class="form-control" value="{{ tech_falls }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="major_decisions">Major Decisions</label>
+                        <input type="number" id="major_decisions" name="major_decisions" class="form-control" value="{{ major_decisions }}" required>
+                    </div>
+                </div>
+                <div class="text-center mt-3">
+                    <button type="submit" class="btn btn-success">Update Stats</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Match History Section -->
     <h2>Match History (Season: {{ selected_season.name }})</h2>
     {% if matches %}

@@ -68,18 +68,10 @@
                     <th>Wins</th>
                     <th>Losses</th>
                     <th>Win %</th>
-                    <th>
-                        <a href="?sort_by=elo&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Elo Rating</a>
-                    </th>
-                    <th>
-                        <a href="?sort_by=rpi&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">RPI</a>
-                    </th>
-                    <th>
-                        <a href="?sort_by=hybrid&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Hybrid Score</a>
-                    </th>
-                    <th>
-                        <a href="?sort_by=dominance&season_id={{ selected_season_id }}{% if selected_region %}&region={{ selected_region }}{% endif %}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" class="sort-link">Dominance Score</a>
-                    </th>
+                    <th>Elo Rating</th>
+                    <th>RPI</th>
+                    <th>Hybrid Score</th>
+                    <th>Dominance Score</th>
                 </tr>
             </thead>
             <tbody>
@@ -106,7 +98,7 @@
         </table>
     </div>
 
-    <!-- Form for bulk deletion of wrestlers, only visible to admins -->
+    <!-- Admin-Only Actions -->
     {% if is_admin %}
     <form method="POST" action="{{ url_for('bulk_delete_wrestlers') }}" class="mb-3">
         <input type="hidden" name="season_id" value="{{ selected_season_id }}">
@@ -119,37 +111,3 @@
     <p>No wrestlers found for this weight class.</p>
 {% endif %}
 {% endblock %}
-
-<!-- Add Mobile-Friendly Styles -->
-<style>
-    .table-responsive {
-        overflow-x: auto;
-    }
-
-    .form-inline label {
-        white-space: nowrap;
-    }
-
-    @media (max-width: 767px) {
-        h1, h2, h3 {
-            font-size: 1.25rem;
-        }
-
-        .form-group label {
-            font-size: 0.9rem;
-        }
-
-        .form-control {
-            font-size: 0.9rem;
-        }
-
-        .btn, .badge {
-            font-size: 0.8rem;
-            padding: 0.4rem 0.8rem;
-        }
-
-        .table th, .table td {
-            padding: 0.5rem;
-        }
-    }
-</style>

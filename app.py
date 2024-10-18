@@ -1125,8 +1125,7 @@ def rankings(weight_class):
                            is_admin=is_admin)  # Pass the is_admin flag
 
 
-
-@app.route('/wrestler/<int:wrestler_id>')
+@app.route('/wrestler/<int:wrestler_id>', methods=['GET', 'POST'])
 def wrestler_detail(wrestler_id):
     # Get the selected season from query parameters
     selected_season_id = request.args.get('season_id')
@@ -1138,6 +1137,27 @@ def wrestler_detail(wrestler_id):
 
     # Fetch the wrestler by ID, filtered by the selected season
     wrestler = Wrestler.query.filter_by(id=wrestler_id, season_id=selected_season_id).first_or_404()
+
+    # Handle POST request for updating stats
+    if request.method == 'POST':
+        # Get falls, tech falls, and major decisions from the form
+        falls = request.form.get('falls', type=int)
+        tech_falls = request.form.get('tech_falls', type=int)
+        major_decisions = request.form.get('major_decisions', type=int)
+
+        # Update the wrestler's stats
+        wrestler.falls = falls
+        wrestler.tech_falls = tech_falls
+        wrestler.major_decisions = major_decisions
+
+        try:
+            db.session.commit()
+            flash('Stats updated successfully!', 'success')
+            # Redirect to the wrestler's detail page to reflect the changes
+            return redirect(url_for('wrestler_detail', wrestler_id=wrestler.id, season_id=selected_season_id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'An error occurred while updating the stats: {str(e)}', 'error')
 
     # Fetch the selected season
     selected_season = Season.query.get(selected_season_id)
@@ -1175,10 +1195,10 @@ def wrestler_detail(wrestler_id):
     tech_fall_rank = next((rank for rank, (wrestler_obj, _) in enumerate(tech_fall_leaders, 1) if wrestler_obj.id == wrestler_id), None)
     major_decision_rank = next((rank for rank, (wrestler_obj, _) in enumerate(major_decision_leaders, 1) if wrestler_obj.id == wrestler_id), None)
 
-    # Get the number of falls, technical falls, and major decisions for the wrestler
-    falls = next((count for wrestler_obj, count in fall_leaders if wrestler_obj.id == wrestler_id), 0)
-    tech_falls = next((count for wrestler_obj, count in tech_fall_leaders if wrestler_obj.id == wrestler_id), 0)
-    major_decisions = next((count for wrestler_obj, count in major_decision_leaders if wrestler_obj.id == wrestler_id), 0)
+    # Use updated values for falls, tech falls, and major decisions for rendering
+    falls = wrestler.falls  # Ensure using the updated value
+    tech_falls = wrestler.tech_falls  # Ensure using the updated value
+    major_decisions = wrestler.major_decisions  # Ensure using the updated value
 
     # Log the values for troubleshooting
     app.logger.info(f"Wrestler {wrestler.name}: Falls = {falls}, Fall Rank = {fall_rank}")
