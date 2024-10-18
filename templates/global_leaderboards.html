@@ -10,7 +10,7 @@
     <div class="form-group">
         <form action="{{ url_for('global_leaderboards') }}" method="GET">
             <label for="seasonSelect" class="font-weight-bold">Select a season:</label>
-            <select id="seasonSelect" name="season_id" class="form-control custom-select" onchange="this.form.submit()">
+            <select id="seasonSelect" name="season_id" class="form-control custom-select" aria-label="Select a season" onchange="this.form.submit()">
                 {% for season in seasons %}
                 <option value="{{ season.id }}" {% if season.id == selected_season_id %} selected {% endif %}>
                     {{ season.name }}

@@ -2403,16 +2403,25 @@ def autocomplete():
 def global_leaderboards():
     # Fetch all seasons for the dropdown
     seasons = Season.query.order_by(Season.start_date.desc()).all()
+    logger.info(f"Available seasons: {[season.name for season in seasons]}")
 
-    # Get the selected season from the request, default to the active season if none is selected
+    # Get the selected season from the request, default to the first available season if none is selected
     selected_season_id = request.args.get('season_id')
     if selected_season_id:
         current_season = Season.query.get(selected_season_id)
     else:
-        current_season = Season.query.filter_by(is_active=True).first()
+        current_season = seasons[0] if seasons else None
+
+    # Check if current_season is None and handle the error
+    if not current_season:
+        flash("No seasons available.", "error")
+        return redirect(url_for('home'))  # Redirect to the home page or an appropriate page
 
     # Get the name for the current season
     current_season_name = current_season.name if current_season else 'N/A'
+
+    # Log current season info
+    logger.info(f"Current season: {current_season_name}")
 
     # Fetch top wrestlers for each win type and the selected season
     fall_leaders = get_stat_leaders('Fall', limit=10, season_id=current_season.id)
@@ -2430,6 +2439,39 @@ def global_leaderboards():
                            current_season_name=current_season_name,
                            seasons=seasons,
                            selected_season_id=current_season.id)
+
+
+
+
+def get_stat_leaders(stat_column, season_id=None, limit=10):
+    """
+    Fetch top wrestlers based on a specific stat (falls, tech falls, major decisions)
+    and return their rank and count of matches with that stat.
+    
+    Parameters:
+        stat_column (str): The stat to rank wrestlers by (e.g., 'Fall', 'Technical Fall', etc.)
+        season_id (int): The ID of the season to filter by. Defaults to None (all seasons).
+        limit (int): The number of top wrestlers to return. Defaults to 10.
+    
+    Returns:
+        List of top wrestlers and their stat counts.
+    """
+    # Construct the base query
+    query = db.session.query(Wrestler, db.func.count(Match.id).label(f'{stat_column}_count'))\
+        .join(Match, db.or_(Wrestler.id == Match.wrestler1_id, Wrestler.id == Match.wrestler2_id))\
+        .filter(Match.win_type == stat_column, Wrestler.id == Match.winner_id)
+
+    # If a season is provided, filter by the selected season
+    if season_id:
+        query = query.filter(Match.season_id == season_id)
+
+    # Group by wrestler and order by stat count (descending)
+    query = query.group_by(Wrestler.id).order_by(db.func.count(Match.id).desc())
+
+    # Limit the number of results and return the top wrestlers
+    return query.limit(int(limit)).all() if limit is not None else query.all()
+
+
 
 
 @app.route('/login', methods=['GET', 'POST'])
