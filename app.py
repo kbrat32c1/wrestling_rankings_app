@@ -952,6 +952,11 @@ def recalculate_wrestler_stats(wrestler_id, season_id):
 # Routes
 @app.route('/')
 def home():
+    # Check if the user is logged in
+    if not current_user.is_authenticated:
+        # Optionally flash a message for the user
+        flash('Please log in to access all features.', 'info')
+
     # Get all available seasons, ordered by start_date (or end_date if you prefer) descending
     seasons = Season.query.order_by(Season.start_date.desc()).all()
 
@@ -2542,6 +2547,7 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('home'))
 
+
 # This function can be used to create a new admin user
 @app.route('/create_admin')
 def create_admin():
@@ -2549,7 +2555,6 @@ def create_admin():
         # Define new user details and set the is_admin flag
         new_user = User(
             username='admin',
-            email='admin@example.com',
             password=generate_password_hash('password123', method='pbkdf2:sha256'),  # Secure password hash
             is_admin=True  # Set admin privileges
         )
@@ -2557,6 +2562,8 @@ def create_admin():
         db.session.commit()
         return "Admin user created successfully!"
     return "Admin user already exists."
+
+
 
 @app.route('/admin/update-all', methods=['POST'])
 @login_required  # Ensure the user is logged in
