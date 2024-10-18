@@ -1972,21 +1972,17 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     if win_flags["major_decision"]:
                         wrestler2.increment_major_decisions()
 
-                # After adding the match and updating win/loss records
-                recalculate_elo(wrestler1.id, season_id)  # Ensure both wrestler and season_id are passed
-                recalculate_elo(wrestler2.id, season_id)  # Ensure both wrestler and season_id are passed
+                # After adding the match and updating win/loss records, recalculate statistics
+                recalculate_elo(wrestler1.id, season_id)
+                recalculate_elo(wrestler2.id, season_id)
+                recalculate_rpi(wrestler1.id, season_id)
+                recalculate_rpi(wrestler2.id, season_id)
+                recalculate_hybrid(wrestler1.id, season_id)
+                recalculate_hybrid(wrestler2.id, season_id)
+                recalculate_dominance(wrestler1.id, season_id)
+                recalculate_dominance(wrestler2.id, season_id)
 
-                # Adjust the calls to include the wrestler ID
-                recalculate_rpi(wrestler1.id, season_id)  # Pass both wrestler ID and season ID
-                recalculate_rpi(wrestler2.id, season_id)  # Pass both wrestler ID and season ID
-
-                recalculate_hybrid(wrestler1.id, season_id)  # Pass both wrestler ID and season ID
-                recalculate_hybrid(wrestler2.id, season_id)  # Pass both wrestler ID and season ID
-
-                recalculate_dominance(wrestler1.id, season_id)  # Pass both wrestler ID and season ID
-                recalculate_dominance(wrestler2.id, season_id)  # Pass both wrestler ID and season ID
-
-                # Commit after each match is successfully added
+                # Commit after processing each match
                 db.session.commit()
                 added_matches += 1
                 detailed_feedback.append(f"Row {row_num}: Match added successfully.")
@@ -2270,11 +2266,9 @@ def bulk_delete_wrestlers():
         for wrestler in remaining_wrestlers:
             recalculate_wrestler_stats(wrestler.id, selected_season_id)  # Recalculate all relevant stats for remaining wrestlers
 
-    # Optionally: Sort wrestlers based on updated stats for rankings
-    updated_rankings = Wrestler.query.filter_by(season_id=selected_season_id).order_by(Wrestler.elo_rating.desc()).all()  # Example: Sort by Elo rating
-
+    # Flash message and redirect to rankings page
     flash(f'Successfully deleted {len(wrestlers)} wrestler(s) and their associated matches.', 'success')
-    return redirect(url_for('rankings', weight_class=weight_class, updated_rankings=updated_rankings))
+    return redirect(url_for('rankings', weight_class=weight_class))
 
 
 @app.route('/clear_data', methods=['POST'])
