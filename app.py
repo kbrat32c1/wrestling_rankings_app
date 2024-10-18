@@ -217,12 +217,12 @@ SCHOOL_ALIASES = {
     "Penn State Erie, The Behrend College": ["Penn State Erie", "Behrend College", "PSU Behrend"],
     "Pennsylvania College of Technology": ["Penn College of Tech", "Penn Tech"],
     "Rochester Institute of Technology": ["RIT", "Rochester Tech"],
-    "St. John's Fisher University": ["St. John's Fisher", "SJFC"],
+    "St. John's Fisher University": ["St. John's Fisher", "SJFC", "St. John Fisher"],
     "Stevens Institute of Technology": ["Stevens Tech", "Stevens"],
     "SUNY - Brockport": ["Brockport", "SUNY Brockport"],
     "SUNY - Cortland": ["Cortland", "SUNY Cortland", "Cortland State"],
     "SUNY - Oneonta": ["Oneonta", "SUNY Oneonta"],
-    "SUNY - Oswego": ["Oswego", "SUNY Oswego"],
+    "SUNY - Oswego": ["Oswego", "SUNY Oswego", "Oswego State"],
     "University of Pittsburgh at Bradford": ["Pitt Bradford", "University of Pittsburgh Bradford"],
     "Hunter College": ["Hunter"],
     "Wilkes University": ["Wilkes"],
@@ -608,19 +608,6 @@ class CSVUploadReport(db.Model):
             'is_reverted': self.is_reverted
         }
 
-
-
-    
-
-import math
-import logging
-
-logger = logging.getLogger(__name__)
-
-# Elo rating functions
-import math
-import logging
-
 logger = logging.getLogger(__name__)
 
 def expected_score(rating_a, rating_b):
@@ -645,35 +632,42 @@ def recalculate_elo(wrestler_id, season_id):
     ).all()
 
     if not matches:
-        # If no matches are found, set Elo rating to 1500
         wrestler.elo_rating = 1500
         logger.info(f"No matches found for {wrestler.name}. Setting Elo to {wrestler.elo_rating}")
         db.session.commit()
         return
+
+    # Store Elo updates in a list to minimize database writes
+    elo_updates = []
 
     # Iterate through the matches to recalculate the Elo rating
     for match in matches:
         opponent = match.wrestler2 if match.wrestler1_id == wrestler.id else match.wrestler1
         
         # Ensure opponent has a valid Elo rating
-        if opponent.elo_rating is None:
-            opponent.elo_rating = 1500  # Default Elo rating if not set
+        opponent.elo_rating = opponent.elo_rating or 1500  # Default Elo rating if not set
 
         expected = expected_score(wrestler.elo_rating, opponent.elo_rating)
         actual = 1 if match.winner_id == wrestler.id else 0
         
         # Update the wrestler's Elo rating
-        wrestler.elo_rating = update_elo(wrestler.elo_rating, expected, actual)
+        new_rating = update_elo(wrestler.elo_rating, expected, actual)
         
-        logger.info(f"Match on {match.date.strftime('%Y-%m-%d')} against {opponent.name}: expected {expected:.4f}, actual {actual}. Updated Elo: {wrestler.elo_rating:.2f}")
+        logger.info(f"Match on {match.date.strftime('%Y-%m-%d')} against {opponent.name}: expected {expected:.4f}, actual {actual}. Updated Elo: {new_rating:.2f}")
 
-    # Commit the changes to the database
-    db.session.commit()
+        # Store the updated rating for the wrestler
+        elo_updates.append((wrestler, new_rating))
 
+    # Apply all updates in a single commit
+    try:
+        for wrestler, new_rating in elo_updates:
+            wrestler.elo_rating = new_rating
+        db.session.commit()
+        logger.info(f"Elo ratings updated successfully for wrestler {wrestler.name}.")
+    except Exception as e:
+        db.session.rollback()  # Rollback if there was an error
+        logger.error(f"Error committing Elo updates for {wrestler.name}: {str(e)}")
 
-import logging
-
-logger = logging.getLogger(__name__)
 
 # RPI calculation functions
 MIN_MATCHES = 3
@@ -1957,20 +1951,20 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     wrestler1.wins += 1
                     wrestler2.losses += 1
                     if win_flags["fall"]:
-                        wrestler1.increment_falls()
+                        wrestler1.increment_falls()  # Only increment for the winner
                     if win_flags["technical_fall"]:
-                        wrestler1.increment_tech_falls()
+                        wrestler1.increment_tech_falls()  # Only increment for the winner
                     if win_flags["major_decision"]:
-                        wrestler1.increment_major_decisions()
+                        wrestler1.increment_major_decisions()  # Only increment for the winner
                 else:
                     wrestler2.wins += 1
                     wrestler1.losses += 1
                     if win_flags["fall"]:
-                        wrestler2.increment_falls()
+                        wrestler2.increment_falls()  # Only increment for the winner
                     if win_flags["technical_fall"]:
-                        wrestler2.increment_tech_falls()
+                        wrestler2.increment_tech_falls()  # Only increment for the winner
                     if win_flags["major_decision"]:
-                        wrestler2.increment_major_decisions()
+                        wrestler2.increment_major_decisions()  # Only increment for the winner
 
                 # After adding the match and updating win/loss records, recalculate statistics
                 recalculate_elo(wrestler1.id, season_id)
