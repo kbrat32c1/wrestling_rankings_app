@@ -429,17 +429,19 @@ class Wrestler(db.Model):
             self.graduate()
 
     def increment_falls(self):
-        """Increment the falls count."""
+        """Increment the falls count and log the update."""
         self.falls += 1
+        app.logger.info(f"Incremented falls for {self.name}. New falls count: {self.falls}")
 
     def increment_tech_falls(self):
-        """Increment the technical falls count."""
+        """Increment the technical falls count and log the update."""
         self.tech_falls += 1
+        app.logger.info(f"Incremented tech falls for {self.name}. New tech falls count: {self.tech_falls}")
 
     def increment_major_decisions(self):
-        """Increment the major decisions count."""
+        """Increment the major decisions count and log the update."""
         self.major_decisions += 1
-
+        app.logger.info(f"Incremented major decisions for {self.name}. New major decisions count: {self.major_decisions}")
 
 
 class Match(db.Model):
@@ -1758,7 +1760,10 @@ def get_or_create_wrestler(name, school, weight_class, season_id):
             losses=0, 
             elo_rating=1500,  # Default Elo rating
             rpi=0.0,
-            dominance_score=0.0  # Initialize other stats
+            dominance_score=0.0,  # Initialize other stats
+            falls=0,  # Initialize falls
+            tech_falls=0,  # Initialize tech falls
+            major_decisions=0  # Initialize major decisions
         )
         db.session.add(wrestler)
         db.session.commit()
@@ -1974,20 +1979,20 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     wrestler1.wins += 1
                     wrestler2.losses += 1
                     if win_flags["fall"]:
-                        wrestler1.increment_falls()  # Only increment for the winner
+                        wrestler1.falls += 1  # Increment falls for wrestler1
                     if win_flags["technical_fall"]:
-                        wrestler1.increment_tech_falls()  # Only increment for the winner
+                        wrestler1.tech_falls += 1  # Increment tech falls for wrestler1
                     if win_flags["major_decision"]:
-                        wrestler1.increment_major_decisions()  # Only increment for the winner
+                        wrestler1.major_decisions += 1  # Increment major decisions for wrestler1
                 else:
                     wrestler2.wins += 1
                     wrestler1.losses += 1
                     if win_flags["fall"]:
-                        wrestler2.increment_falls()  # Only increment for the winner
+                        wrestler2.falls += 1  # Increment falls for wrestler2
                     if win_flags["technical_fall"]:
-                        wrestler2.increment_tech_falls()  # Only increment for the winner
+                        wrestler2.tech_falls += 1  # Increment tech falls for wrestler2
                     if win_flags["major_decision"]:
-                        wrestler2.increment_major_decisions()  # Only increment for the winner
+                        wrestler2.major_decisions += 1  # Increment major decisions for wrestler2
 
                 # After adding the match and updating win/loss records, recalculate statistics
                 recalculate_elo(wrestler1.id, season_id)
@@ -2538,19 +2543,20 @@ def update_all():
         flash('You do not have permission to perform this action.', 'error')
         return redirect(url_for('global_leaderboards'))
 
-    # Get the selected season from the request (passed via the form in home.html)
-    selected_season_id = request.args.get('season_id')
+    # Get the selected season from the request (if applicable)
+    selected_season_id = request.form.get('season_id')  # Get the season_id from the form data
     if not selected_season_id:
-        flash('No season selected for updating rankings.', 'error')
+        flash('No season selected for updating stats.', 'error')
         return redirect(url_for('home'))
 
     try:
         # Loop through all wrestlers for the selected season
         wrestlers = Wrestler.query.filter_by(season_id=selected_season_id).all()
         for wrestler in wrestlers:
-            # Reset wins and losses to recalculate them
-            wrestler.wins = 0
-            wrestler.losses = 0
+            # Reset specific stats to recalculate them
+            wrestler.falls = 0
+            wrestler.tech_falls = 0
+            wrestler.major_decisions = 0
 
             # Fetch all matches for the wrestler in the selected season
             matches = Match.query.filter(
@@ -2558,22 +2564,19 @@ def update_all():
                 (Match.season_id == selected_season_id)
             ).all()
             
-            # Recalculate wins/losses based on match outcomes
+            # Recalculate falls, tech falls, and major decisions
             for match in matches:
                 if match.winner_id == wrestler.id:
-                    wrestler.wins += 1
-                else:
-                    wrestler.losses += 1
-
-            # Recalculate Elo, RPI, Hybrid, and Dominance Scores for each wrestler
-            recalculate_elo(wrestler)
-            recalculate_rpi(wrestler)
-            recalculate_hybrid(wrestler)
-            recalculate_dominance(wrestler)
+                    if match.win_type == 'Fall':
+                        wrestler.falls += 1
+                    elif match.win_type == 'Technical Fall':
+                        wrestler.tech_falls += 1
+                    elif match.win_type == 'Major Decision':
+                        wrestler.major_decisions += 1
 
         # Commit all changes to the database at once
         db.session.commit()
-        flash(f'All rankings, wins/losses, and stats for Season {selected_season_id} have been successfully updated!', 'success')
+        flash(f'Falls, Tech Falls, and Major Decisions for Season {selected_season_id} have been successfully updated!', 'success')
     except Exception as e:
         # Rollback changes in case of an error
         db.session.rollback()

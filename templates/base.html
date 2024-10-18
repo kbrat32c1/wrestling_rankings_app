@@ -175,11 +175,11 @@
 
     <!-- Admin "Update All" Button -->
     {% if current_user.is_authenticated and current_user.is_admin %}
-        <div class="update-all-container">
-            <form action="{{ url_for('update_all') }}" method="post">
-                <button type="submit" class="btn btn-danger">Update All Rankings and Stats</button>
-            </form>
-        </div>
+    <div class="update-all-container">
+        <form action="{{ url_for('update_all') }}" method="post">
+            <button type="submit" class="btn btn-danger">Update All Rankings and Stats</button>
+        </form>
+    </div>
     {% endif %}
 
     <!-- Main Content -->
