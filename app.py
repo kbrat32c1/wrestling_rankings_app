@@ -1257,6 +1257,8 @@ def wrestler_detail(wrestler_id):
                            selected_season=selected_season,
                            selected_season_id=selected_season_id)  # Ensure season_id is passed correctly
 
+
+
 @app.route('/add_wrestler', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -2553,6 +2555,8 @@ def update_all():
         # Loop through all wrestlers for the selected season
         wrestlers = Wrestler.query.filter_by(season_id=selected_season_id).all()
         for wrestler in wrestlers:
+            logger.info(f'Updating stats for wrestler: {wrestler.name}, ID: {wrestler.id}')  # Log wrestler being processed
+
             # Reset specific stats to recalculate them
             wrestler.falls = 0
             wrestler.tech_falls = 0
