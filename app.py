@@ -825,10 +825,12 @@ def get_stat_leaders(stat_column, season_id=None, limit=10):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
-            abort(403)  # Forbidden
+        if not session.get('is_admin'):  # Check if the user is admin
+            flash('Access denied: Admins only.', 'danger')
+            return redirect(url_for('home'))  # Redirect to home
         return f(*args, **kwargs)
     return decorated_function
+
 
 def normalize_school_name(school_name):
     """
@@ -2543,11 +2545,13 @@ def login():
     return render_template('login.html')
 
 @app.route('/logout')
+@login_required
 def logout():
-    logout_user()  # Logs the user out
-    session.pop('is_admin', None)  # Remove the admin session variable
+    logout_user()  # This logs the user out
+    session.pop('is_admin', None)  # Clear admin status
     flash('Logged out successfully!', 'success')
     return redirect(url_for('home'))
+
 
 
 
