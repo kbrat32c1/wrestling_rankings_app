@@ -222,9 +222,9 @@ SCHOOL_ALIASES = {
     "Stevens Institute of Technology": ["Stevens Tech", "Stevens"],
     "SUNY - Brockport": ["Brockport", "SUNY Brockport"],
     "SUNY - Cortland": ["Cortland", "SUNY Cortland", "Cortland State"],
-    "SUNY - Oneonta": ["Oneonta", "SUNY Oneonta"],
+    "SUNY - Oneonta": ["Oneonta", "SUNY Oneonta", "Oneonta State"],
     "SUNY - Oswego": ["Oswego", "SUNY Oswego", "Oswego State"],
-    "University of Pittsburgh at Bradford": ["Pitt Bradford", "University of Pittsburgh Bradford"],
+    "University of Pittsburgh at Bradford": ["Pitt Bradford", "University of Pittsburgh Bradford", "Pitt-Bradford"],
     "Hunter College": ["Hunter"],
     "Wilkes University": ["Wilkes"],
     "Alvernia University": ["Alvernia"],
@@ -269,7 +269,7 @@ SCHOOL_ALIASES = {
     "Albion College": ["Albion"],
     "Alma College": ["Alma"],
     "Aurora University": ["Aurora"],
-    "Case Western Reserve University": ["Case Western", "CWRU"],
+    "Case Western Reserve University": ["Case Western", "CWRU", "Case Western Reserve"],
     "Elmhurst College": ["Elmhurst"],
     "John Carroll University": ["John Carroll", "JCU"],
     "Manchester University": ["Manchester"],
@@ -584,20 +584,14 @@ class CSVUploadReport(db.Model):
     added_matches = db.Column(db.Integer, nullable=False, default=0)
     skipped_duplicates = db.Column(db.Integer, nullable=False, default=0)
     row_errors = db.Column(db.Integer, nullable=False, default=0)
-    detailed_feedback = db.Column(db.Text, nullable=False)  # Store detailed feedback as JSON or text
-    match_ids = db.Column(db.Text, nullable=False)  # Store added match IDs as a JSON array for reversion
+    detailed_feedback = db.Column(db.JSON, nullable=False)  # Store detailed feedback as JSON
+    match_ids = db.Column(db.JSON, nullable=False)  # Store added match IDs as a JSON array for reversion
     is_reverted = db.Column(db.Boolean, nullable=False, default=False)  # Track if the report has been reverted
 
     def to_dict(self):
-        try:
-            feedback = json.loads(self.detailed_feedback)
-        except json.JSONDecodeError:
-            feedback = []  # Fallback if there's an issue with the feedback data
-
-        try:
-            match_ids = json.loads(self.match_ids)
-        except json.JSONDecodeError:
-            match_ids = []  # Fallback if there's an issue with the match_ids data
+        # Convert the detailed_feedback and match_ids to appropriate formats if necessary
+        feedback = self.detailed_feedback if isinstance(self.detailed_feedback, list) else []
+        match_ids = self.match_ids if isinstance(self.match_ids, list) else []
 
         return {
             'id': self.id,
@@ -2385,13 +2379,14 @@ def upload_csv():
         # Check if the uploaded file is a CSV
         if file.filename.endswith('.csv'):
             try:
-                # Call the function to process the CSV
-                result = validate_and_process_csv(file)
+                # Call the function to process the CSV and get feedback
+                feedback, success = validate_and_process_csv(file)
 
                 # If processing was successful
-                if result:
+                if success:
                     flash('CSV uploaded and processed successfully!', 'success')
                 else:
+                    session['csv_feedback'] = feedback  # Store feedback in session
                     flash('CSV upload failed. Check the feedback for details.', 'error')
             except Exception as e:
                 flash(f'Error processing file: {str(e)}', 'error')
@@ -2401,7 +2396,7 @@ def upload_csv():
         return redirect(url_for('upload_csv'))
 
     # For GET request, show the form and fetch feedback from the session
-    csv_feedback = session.pop('csv_feedback', None)
+    csv_feedback = session.get('csv_feedback', None)  # Get feedback if it exists
     return render_template('upload_csv.html', csv_feedback=csv_feedback)
 
 
