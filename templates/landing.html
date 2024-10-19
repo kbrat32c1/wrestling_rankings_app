@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to NCAA Wrestling Rankings</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            text-align: center;
+            padding: 50px;
+        }
+        .logo {
+            width: 150px;
+        }
+        .button-container {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="display-4">Welcome to NCAA Wrestling Rankings</h1>
+    <img src="{{ url_for('static', filename='images/D3_LOGO_FULL_TAG_LIGHTgreen.png') }}" alt="D3 Wrestling Logo" class="logo mb-4">
+    
+    <div class="button-container">
+        <!-- Updated route for non-admin viewers -->
+        <a href="{{ url_for('viewer_home') }}" class="btn btn-primary btn-lg">Enter Rankings</a>
+        <a href="{{ url_for('login') }}" class="btn btn-secondary btn-lg">Admin Login</a>
+    </div>
+</body>
+</html>

@@ -113,7 +113,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav mr-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="/">Home</a>
+                    <a class="nav-link" href="{{ url_for('viewer_home') if not current_user.is_authenticated else url_for('home') }}">Home</a>
                 </li>
 
                 <!-- CSV Management and Export Data links behind admin login -->

@@ -445,6 +445,8 @@ class Wrestler(db.Model):
         app.logger.info(f"Incremented major decisions for {self.name}. New major decisions count: {self.major_decisions}")
 
 
+
+
 class Match(db.Model):
     __tablename__ = 'match'
 
@@ -943,15 +945,23 @@ def recalculate_wrestler_stats(wrestler_id, season_id):
         db.session.rollback()  # Rollback if there was an error
 
 
-
-from flask import flash, redirect, url_for, render_template, request
-from flask_login import current_user  
-# Ensure you import current_user from Flask-Login
+@app.route('/landing')
+def landing():
+    # Log out any currently logged-in user
+    logout_user()
+    return render_template('landing.html')
 
 @app.route('/')
 def home():
-    # Check if the user is an admin using Flask-Login's current_user
-    is_admin = current_user.is_authenticated and current_user.is_admin
+    print("Accessing the home route...")
+    
+    # Redirect to landing page if not logged in
+    if not current_user.is_authenticated:
+        print("User is not authenticated. Redirecting to landing.")
+        return redirect(url_for('landing'))
+    
+    # Check if the user is an admin
+    is_admin = current_user.is_admin
 
     # Get all available seasons, ordered by start_date descending
     seasons = Season.query.order_by(Season.start_date.desc()).all()
@@ -995,7 +1005,62 @@ def home():
                            selected_season=selected_season,
                            selected_season_id=selected_season.id if selected_season else None,
                            recent_season=recent_season,
-                           is_admin=is_admin)  # Added the comma here
+                           is_admin=is_admin)
+
+@app.route('/viewer-home')
+def viewer_home():
+    print("Accessing the viewer home route...")
+    
+    # Treat this as a non-admin view
+    is_admin = False
+
+    # Get all available seasons, ordered by start_date descending
+    seasons = Season.query.order_by(Season.start_date.desc()).all()
+
+    # Get the most recent season
+    recent_season = seasons[0] if seasons else None
+
+    # Get the selected season from the URL or default to the most recent season
+    selected_season_id = request.args.get('season_id')
+
+    if not selected_season_id and recent_season:
+        # Default to the most recent season if no season is selected
+        selected_season_id = recent_season.id
+
+    # Fetch the selected season object
+    selected_season = Season.query.get(selected_season_id) if selected_season_id else recent_season
+
+    if not selected_season:
+        flash('No seasons found. Please create a new season to proceed.', 'warning')
+        return redirect(url_for('manage_seasons'))
+
+    # Initialize weight_class_data for storing wrestlers by weight class
+    weight_class_data = []
+
+    if selected_season:
+        # Fetch weight class data
+        for weight in WEIGHT_CLASSES:
+            wrestlers = Wrestler.query.filter_by(weight_class=weight, season_id=selected_season.id)\
+                                      .order_by(Wrestler.elo_rating.desc())\
+                                      .limit(5)\
+                                      .all()
+            weight_class_data.append({
+                'weight': weight,
+                'wrestlers': wrestlers
+            })
+
+    # Render the home template with season data, but treat as a non-admin view
+    return render_template('home.html',
+                           weight_class_data=weight_class_data,
+                           seasons=seasons,
+                           selected_season=selected_season,
+                           selected_season_id=selected_season.id if selected_season else None,
+                           recent_season=recent_season,
+                           is_admin=is_admin)
+
+
+
+
 
 
 @app.route('/rankings/<int:weight_class>')
@@ -1865,47 +1930,41 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 }
 
                 # Handle win types and match times
-                if win_type in ['decision', 'dec']:
-                    win_flags["decision"] = True
-                elif win_type in ['major decision', 'major']:
-                    win_flags["major_decision"] = True
-                elif win_type in ['fall', 'pin']:
-                    win_flags["fall"] = True
-                    try:
-                        match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
-                    except ValueError:
-                        detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Fall' win type.")
-                        row_errors += 1
-                        continue
-                elif win_type in ['technical fall', 'tech fall']:
-                    win_flags["technical_fall"] = True
-                    try:
-                        match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
-                    except ValueError:
-                        detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Technical Fall' win type.")
-                        row_errors += 1
-                        continue
-                elif win_type in ['injury default', 'injury']:
-                    win_flags["injury_default"] = True
-                elif win_type in ['sv-1', 'sudden victory', 'sudden victory - 1']:
-                    win_flags["sudden_victory"] = True
-                    if row['Match_Time'].strip():
+                win_type_mapping = {
+                    'decision': 'decision',
+                    'dec': 'decision',
+                    'major decision': 'major_decision',
+                    'major': 'major_decision',
+                    'fall': 'fall',
+                    'pin': 'fall',
+                    'technical fall': 'technical_fall',
+                    'tech fall': 'technical_fall',
+                    'injury default': 'injury_default',
+                    'injury': 'injury_default',
+                    'sudden victory': 'sudden_victory',
+                    'sv-1': 'sudden_victory',
+                    'sudden victory - 1': 'sudden_victory',
+                    'tiebreaker': 'tiebreaker_1',
+                    'tie breaker': 'tiebreaker_1',
+                    'tb-1': 'tiebreaker_1',
+                    'tb-2': 'tiebreaker_2',
+                    'medical forfeit': 'medical_forfeit',
+                    'med forfeit': 'medical_forfeit',
+                    'disqualification': 'disqualification',
+                    'dq': 'disqualification'
+                }
+
+                if win_type in win_type_mapping:
+                    win_flags[win_type_mapping[win_type]] = True
+
+                    # Match time handling for fall and technical fall
+                    if win_flags["fall"] or win_flags["technical_fall"]:
                         try:
                             match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
                         except ValueError:
-                            detailed_feedback.append(f"Row {row_num}: Invalid match time format for 'Sudden Victory' win type.")
+                            detailed_feedback.append(f"Row {row_num}: Invalid match time format for '{win_type}' win type.")
                             row_errors += 1
                             continue
-                elif win_type in ['2-ot', 'double overtime']:
-                    win_flags["double_overtime"] = True
-                elif win_type in ['tb-1', 'tiebreaker - 1']:
-                    win_flags["tiebreaker_1"] = True
-                elif win_type in ['tb-2', 'tiebreaker - 2', 'tiebreaker - 2 (riding time)']:
-                    win_flags["tiebreaker_2"] = True
-                elif win_type in ['medical forfeit', 'med forfeit']:
-                    win_flags["medical_forfeit"] = True
-                elif win_type in ['disqualification', 'dq']:
-                    win_flags["disqualification"] = True
                 else:
                     detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'.")
                     row_errors += 1
@@ -2102,8 +2161,10 @@ def csv_reports(page):
     for report in paginated_reports.items:
         if report.detailed_feedback:
             try:
-                # Parse the feedback from JSON format
-                report.detailed_feedback = json.loads(report.detailed_feedback)
+                # Check if `detailed_feedback` is already a list
+                if not isinstance(report.detailed_feedback, list):
+                    # Parse the feedback from JSON format
+                    report.detailed_feedback = json.loads(report.detailed_feedback)
             except json.JSONDecodeError:
                 # Handle JSON parsing error, set as empty if it fails
                 report.detailed_feedback = []
@@ -2532,10 +2593,10 @@ def login():
             login_user(user)  # Logs the user in
 
             # Set session variable to indicate admin status
-            session['is_admin'] = user.is_admin  # Assuming your User model has an is_admin field
+            session['is_admin'] = user.is_admin
 
             flash('Logged in successfully!', 'success')
-            return redirect(url_for('home'))  # Redirect after successful login
+            return redirect(url_for('home'))  # Redirect to the homepage after login
         else:
             flash('Invalid username or password', 'danger')
 
@@ -2547,7 +2608,7 @@ def logout():
     logout_user()  # This logs the user out
     session.pop('is_admin', None)  # Clear admin status
     flash('Logged out successfully!', 'success')
-    return redirect(url_for('home'))
+    return redirect(url_for('landing'))  # Redirect to landing page after logoutedirect(url_for('landing'))  # Redirect to the landing page after logout
 
 
 
