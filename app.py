@@ -15,7 +15,8 @@ from sqlalchemy import event
 import json
 import os
 from flask_login import LoginManager
-from flask_session import Session
+
+
 
 
 app = Flask(__name__)
@@ -23,21 +24,10 @@ app = Flask(__name__)
 # Production Database URL (Use the Render PostgreSQL connection string)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a.ohio-postgres.render.com/ncaa_division_3_wrestlers'
 
-
-# Ensure sessions are handled correctly
-app.config['SESSION_TYPE'] = 'filesystem'  # Each session will be stored separately on the server
-app.config['SESSION_PERMANENT'] = False    # Sessions will not be kept permanently
-app.config['SESSION_USE_SIGNER'] = True    # Sign session cookies for extra security
-app.config['SESSION_COOKIE_NAME'] = 'session'  # Default name for better compatibility
-app.config['SESSION_COOKIE_SECURE'] = True  # Use secure cookies (works best over HTTPS)
-app.config['SESSION_COOKIE_HTTPONLY'] = True # Prevent client-side scripts from accessing cookies
-app.config['SECRET_KEY'] = 'your_static_secret_key_here' 
-# Existing configurations
+# Other configurations
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
- # Replace with a secure and consistent key
-
-Session(app)
+app.config['SECRET_KEY'] = 'your_secret_key_here'
 
 
 # Initialize the database
@@ -51,8 +41,6 @@ migrate = Migrate(app, db)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
-
-
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
