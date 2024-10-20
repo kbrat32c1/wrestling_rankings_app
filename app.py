@@ -28,16 +28,16 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_
 app.config['SESSION_TYPE'] = 'filesystem'  # Each session will be stored separately on the server
 app.config['SESSION_PERMANENT'] = False    # Sessions will not be kept permanently
 app.config['SESSION_USE_SIGNER'] = True    # Sign session cookies for extra security
-app.config['SESSION_COOKIE_NAME'] = 'wrestling_rankings_session'  # Custom cookie name for clarity
+app.config['SESSION_COOKIE_NAME'] = 'session'  # Default name for better compatibility
 app.config['SESSION_COOKIE_SECURE'] = True  # Use secure cookies (works best over HTTPS)
 app.config['SESSION_COOKIE_HTTPONLY'] = True # Prevent client-side scripts from accessing cookies
-
+app.config['SECRET_KEY'] = 'your_static_secret_key_here' 
 # Existing configurations
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-app.config['SECRET_KEY'] = 'your_static_secret_key_here'  # Replace with a secure and consistent key
+ # Replace with a secure and consistent key
 
-
+Session(app)
 
 
 # Initialize the database
@@ -52,7 +52,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-Session(app)
+
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
