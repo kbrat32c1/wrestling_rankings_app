@@ -29,7 +29,7 @@ app.config['SESSION_TYPE'] = 'filesystem'  # Each session will be stored separat
 app.config['SESSION_PERMANENT'] = False    # Sessions will not be kept permanently
 app.config['SESSION_USE_SIGNER'] = True    # Sign session cookies for extra security
 app.config['SESSION_COOKIE_NAME'] = 'wrestling_rankings_session'  # Custom cookie name for clarity
-app.config['SESSION_COOKIE_SECURE'] = False  # Use secure cookies (works best over HTTPS)
+app.config['SESSION_COOKIE_SECURE'] = True  # Use secure cookies (works best over HTTPS)
 app.config['SESSION_COOKIE_HTTPONLY'] = True # Prevent client-side scripts from accessing cookies
 
 # Existing configurations
