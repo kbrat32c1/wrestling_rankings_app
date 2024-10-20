@@ -14,24 +14,19 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import event
 import json
 import os
-
-
-
-
-
+from flask_login import LoginManager
 
 app = Flask(__name__)
 
 # Production Database URL (Use the Render PostgreSQL connection string)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a.ohio-postgres.render.com/ncaa_division_3_wrestlers'
 
+
+
 # Other configurations
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-app.config['SECRET_KEY'] = os.urandom(24)
-app.config['SESSION_COOKIE_NAME'] = 'wrestling_rankings_user_session'
-
-
+app.config['SECRET_KEY'] = 'your_secret_key_here'
 
 # Initialize the database
 db = SQLAlchemy(app)
@@ -48,12 +43,6 @@ login_manager.login_view = 'login'
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = app.logger
-
-# User loader for Flask-Login
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
 
 WEIGHT_CLASSES = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285]
 
@@ -333,6 +322,10 @@ SCHOOL_ALIASES = {
 }
 
 
+# User loader for Flask-Login
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # Models
 
@@ -956,22 +949,21 @@ def recalculate_wrestler_stats(wrestler_id, season_id):
 
 @app.route('/landing')
 def landing():
-    # Do not log out the user when accessing the landing page
+    # Log out any currently logged-in user
+    logout_user()
     return render_template('landing.html')
 
 @app.route('/')
 def home():
     print("Accessing the home route...")
     
-    # Ensure the user remains logged in if they are authenticated
+    # Redirect to landing page if not logged in
     if not current_user.is_authenticated:
         print("User is not authenticated. Redirecting to landing.")
         return redirect(url_for('landing'))
     
-    # Proceed with regular home page logic if authenticated
+    # Check if the user is an admin
     is_admin = current_user.is_admin
-    # Rest of your existing logic follows...
-
 
     # Get all available seasons, ordered by start_date descending
     seasons = Season.query.order_by(Season.start_date.desc()).all()
@@ -1521,7 +1513,7 @@ def add_match():
 
 
 
-
+from datetime import datetime, time
 
 @app.route('/edit_match/<int:match_id>', methods=['GET', 'POST'])
 @login_required
@@ -2593,44 +2585,32 @@ def get_stat_leaders(stat_column, season_id=None, limit=10):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Print current user authentication status before attempting to log in
-    print(f"Before login - Authenticated: {current_user.is_authenticated}, Session: {session.items()}")
-
-    # Handle POST request for logging in
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
-        # Fetch the user from the database
         user = User.query.filter_by(username=username).first()
 
-        # Check if the user exists and if the password is correct
+        # Check if the user exists and the password is correct
         if user and user.check_password(password):
-            # Log in the user using Flask-Login
-            login_user(user)
+            login_user(user)  # Logs the user in
 
-            # Confirm login success and redirect
-            print(f"Logged in: {current_user.is_authenticated}, Admin: {current_user.is_admin}")
+            # Set session variable to indicate admin status
+            session['is_admin'] = user.is_admin
+
             flash('Logged in successfully!', 'success')
-            return redirect(url_for('home'))  # Redirect to the admin home page or a suitable landing page
+            return redirect(url_for('home'))  # Redirect to the homepage after login
         else:
-            # Handle invalid login attempt
             flash('Invalid username or password', 'danger')
 
-    # Print authentication status after login attempt
-    print(f"After login attempt - Authenticated: {current_user.is_authenticated}, Session: {session.items()}")
-    
-    # Render the login template
     return render_template('login.html')
-
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()  # This logs the user out
-    session.clear()  # Completely clear the session
+    session.pop('is_admin', None)  # Clear admin status
     flash('Logged out successfully!', 'success')
-    return redirect(url_for('landing'))
+    return redirect(url_for('landing'))  # Redirect to landing page after logoutedirect(url_for('landing'))  # Redirect to the landing page after logout
 
 
 
@@ -2828,7 +2808,7 @@ def push_wrestlers_to_new_season():
     return redirect(url_for('manage_seasons'))
 
 
-
+import logging
 
 @app.route('/manage_seasons')
 @login_required
