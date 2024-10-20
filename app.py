@@ -29,6 +29,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SESSION_COOKIE_NAME'] = 'wrestling_rankings_user_session'
 
 
 
@@ -2592,22 +2593,34 @@ def get_stat_leaders(stat_column, season_id=None, limit=10):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Print current user authentication status before attempting to log in
     print(f"Before login - Authenticated: {current_user.is_authenticated}, Session: {session.items()}")
+
+    # Handle POST request for logging in
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        
+        # Fetch the user from the database
         user = User.query.filter_by(username=username).first()
 
+        # Check if the user exists and if the password is correct
         if user and user.check_password(password):
-            login_user(user)  # Log in the user
+            # Log in the user using Flask-Login
+            login_user(user)
 
+            # Confirm login success and redirect
             print(f"Logged in: {current_user.is_authenticated}, Admin: {current_user.is_admin}")
             flash('Logged in successfully!', 'success')
-            return redirect(url_for('home'))  # Redirect to the home page
+            return redirect(url_for('home'))  # Redirect to the admin home page or a suitable landing page
         else:
+            # Handle invalid login attempt
             flash('Invalid username or password', 'danger')
 
+    # Print authentication status after login attempt
     print(f"After login attempt - Authenticated: {current_user.is_authenticated}, Session: {session.items()}")
+    
+    # Render the login template
     return render_template('login.html')
 
 
