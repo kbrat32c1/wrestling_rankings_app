@@ -3,30 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to NCAA Wrestling Rankings</title>
+    <title>NCAA D3 Wrestling Rankings</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #f8f9fa;
+            background-color: #f8f9fa; /* Lighter background color */
+            color: #343a40; /* Darker text color for contrast */
             text-align: center;
             padding: 50px;
         }
         .logo {
             width: 150px;
+            margin: 20px 0;
+        }
+        .darken {
+            filter: brightness(0.5); /* Darken the image */
         }
         .button-container {
             margin-top: 30px;
         }
+        h1 {
+            margin-bottom: 20px;
+        }
+        @media (min-width: 768px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+            .logo {
+                width: 200px;
+            }
+        }
+        .admin-login {
+            margin-top: 20px; /* Space above the login link */
+            font-size: 0.8rem; /* Smaller font size */
+        }
+        .admin-login a {
+            color: #6c757d; /* Discreet color */
+            text-decoration: none; /* Remove underline */
+        }
+        .admin-login a:hover {
+            text-decoration: underline; /* Underline on hover for visibility */
+        }
+        .btn {
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .btn:hover {
+            background-color: #0056b3; /* Darker shade for hover */
+            transform: scale(1.05); /* Slightly increase size on hover */
+        }
     </style>
 </head>
 <body>
-    <h1 class="display-4">Welcome to NCAA Wrestling Rankings</h1>
-    <img src="{{ url_for('static', filename='images/D3_LOGO_FULL_TAG_LIGHTgreen.png') }}" alt="D3 Wrestling Logo" class="logo mb-4">
-    
+    <h1 class="display-4">Welcome to NCAA D3 Wrestling Rankings</h1>
+    <div class="d-flex flex-column align-items-center">
+        <img src="{{ url_for('static', filename='images/D3_LOGO_MARK_ALT_LIGHT.png') }}" alt="D3 Wrestling Logo" class="logo">
+        <img src="{{ url_for('static', filename='images/Its for the GAME.png') }}" alt="It's for the GAME" class="logo darken"> <!-- Added class here -->
+    </div>
     <div class="button-container">
-        <!-- Updated route for non-admin viewers -->
-        <a href="{{ url_for('viewer_home') }}" class="btn btn-primary btn-lg">Enter Rankings</a>
-        <a href="{{ url_for('login') }}" class="btn btn-secondary btn-lg">Admin Login</a>
+        <a href="{{ url_for('viewer_home') }}" class="btn btn-primary btn-lg mx-2">Enter Rankings</a>
+    </div>
+    <div class="admin-login">
+        <a href="{{ url_for('login') }}">Admin Login</a> <!-- Discreetly placed here -->
     </div>
 </body>
 </html>
