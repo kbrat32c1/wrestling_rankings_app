@@ -14,7 +14,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import event
 import json
 import os
-from flask_login import LoginManager
+
+
 
 
 
@@ -27,7 +28,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_
 # Other configurations
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-app.config['SECRET_KEY'] = 'your_secret_key_here'
+app.config['SECRET_KEY'] = os.urandom(24)
+
 
 
 # Initialize the database
@@ -45,6 +47,12 @@ login_manager.login_view = 'login'
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = app.logger
+
+# User loader for Flask-Login
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 
 WEIGHT_CLASSES = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285]
 
@@ -324,10 +332,6 @@ SCHOOL_ALIASES = {
 }
 
 
-# User loader for Flask-Login
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
 
 # Models
 
@@ -1516,7 +1520,7 @@ def add_match():
 
 
 
-from datetime import datetime, time
+
 
 @app.route('/edit_match/<int:match_id>', methods=['GET', 'POST'])
 @login_required
@@ -2596,16 +2600,16 @@ def login():
 
         if user and user.check_password(password):
             login_user(user)  # Log in the user
-            session['is_admin'] = user.is_admin  # Set admin session
 
-            print(f"Logged in: {current_user.is_authenticated}, Admin: {user.is_admin}")
+            print(f"Logged in: {current_user.is_authenticated}, Admin: {current_user.is_admin}")
             flash('Logged in successfully!', 'success')
-            return redirect(url_for('home'))
+            return redirect(url_for('home'))  # Redirect to the home page
         else:
             flash('Invalid username or password', 'danger')
 
     print(f"After login attempt - Authenticated: {current_user.is_authenticated}, Session: {session.items()}")
     return render_template('login.html')
+
 
 @app.route('/logout')
 @login_required
@@ -2811,7 +2815,7 @@ def push_wrestlers_to_new_season():
     return redirect(url_for('manage_seasons'))
 
 
-import logging
+
 
 @app.route('/manage_seasons')
 @login_required
