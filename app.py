@@ -529,8 +529,8 @@ class Match(db.Model):
         self.injury_default = self.win_type == 'Injury Default'
         self.sudden_victory = self.win_type in ['SV-1', 'Sudden Victory', 'Sudden Victory - 1']  # Include variations
         self.double_overtime = self.win_type in ['2-OT', 'Double Overtime']
-        self.tiebreaker_1 = self.win_type in ['TB-1', 'Tiebreaker - 1']
-        self.tiebreaker_2 = self.win_type in ['TB-2', 'Tiebreaker - 2 (Riding Time)']
+        self.tiebreaker_1 = self.win_type in ['TB-1', 'Tiebreaker - 1', 'tiebreaker - 1']
+        self.tiebreaker_2 = self.win_type in ['TB-2', 'Tiebreaker - 2 (Riding Time)', 'tiebreaker - 2 (riding time)' ]
         self.medical_forfeit = self.win_type == 'Medical Forfeit'
         self.disqualification = self.win_type == 'Disqualification'
 
@@ -1950,6 +1950,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     'tie breaker': 'tiebreaker_1',
                     'tb-1': 'tiebreaker_1',
                     'tb-2': 'tiebreaker_2',
+                    'tiebreaker - 1': 'tiebreaker_1',  # New addition for 'tiebreaker - 1'
+                    'tiebreaker - 2 (riding time)': 'tiebreaker_2',  # New addition for 'tiebreaker - 2'
                     'medical forfeit': 'medical_forfeit',
                     'med forfeit': 'medical_forfeit',
                     'disqualification': 'disqualification',
