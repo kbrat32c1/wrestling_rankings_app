@@ -1715,10 +1715,17 @@ def delete_match(match_id):
         wrestler2.wins -= 1
         wrestler1.losses -= 1
 
+    # Determine the current season based on the match
+    season_id = match.season_id  # Assuming each match has a season_id field
+
     # Delete the match from the database
     db.session.delete(match)
 
     # Recalculate stats for both wrestlers after match deletion
+    recalculate_wrestler_stats(wrestler1.id, season_id)
+    recalculate_wrestler_stats(wrestler2.id, season_id)
+
+    # Recalculate Elo, RPI, Hybrid, and Dominance for both wrestlers
     recalculate_elo(wrestler1.id, season_id)
     recalculate_elo(wrestler2.id, season_id)
     recalculate_rpi(wrestler1.id, season_id)
@@ -1727,10 +1734,6 @@ def delete_match(match_id):
     recalculate_hybrid(wrestler2.id, season_id)
     recalculate_dominance(wrestler1.id, season_id)
     recalculate_dominance(wrestler2.id, season_id)
-    # After committing the match
-    recalculate_wrestler_stats(wrestler1.id, season_id)
-    recalculate_wrestler_stats(wrestler2.id, season_id)
-
 
     # Commit the changes to the database
     db.session.commit()
@@ -1970,7 +1973,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                             row_errors += 1
                             continue
                 else:
-                    detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'.")
+                    valid_win_types = ", ".join(win_type_mapping.keys())
+                    detailed_feedback.append(f"Row {row_num}: Unrecognized win type '{win_type}'. Valid win types are: {valid_win_types}.")
                     row_errors += 1
                     continue
 
@@ -2093,10 +2097,14 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 # Commit after processing each match
                 db.session.commit()
                 added_matches += 1
-                detailed_feedback.append(f"Row {row_num}: Match added successfully.")
+                detailed_feedback.append(
+                    f"Row {row_num}: Match added successfully: '{wrestler1_name}' (Weight Class: {weight_class}) vs '{wrestler2_name}' (Weight Class: {weight_class}) with win type '{win_type}'."
+                )
 
             except Exception as e:
-                detailed_feedback.append(f"Row {row_num}: Error processing match ({str(e)}).")
+                detailed_feedback.append(
+                    f"Row {row_num}: Error processing match for '{wrestler1_name}' (Weight Class: {weight_class}) vs '{wrestler2_name}' (Weight Class: {weight_class}) ({str(e)})."
+                )
                 row_errors += 1
                 db.session.rollback()
                 continue

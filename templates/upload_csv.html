@@ -26,9 +26,16 @@
 <!-- Display CSV Feedback if available -->
 {% if csv_feedback %}
     <h2>CSV Processing Feedback:</h2>
-    <ul>
+    <ul class="list-unstyled">
         {% for feedback in csv_feedback %}
-        <li>{{ feedback }}</li>
+        <li>
+            <div class="alert 
+                {% if 'success' in feedback %}alert-success 
+                {% elif 'error' in feedback %}alert-danger 
+                {% else %}alert-warning{% endif %}">
+                {{ feedback }}
+            </div>
+        </li>
         {% endfor %}
     </ul>
 {% endif %}
