@@ -958,44 +958,45 @@ def recalculate_wrestler_stats(wrestler_id, season_id):
 def get_team_scores(season_id):
     """
     Calculate team scores for the entire division based on the ranking of individual wrestlers.
+    Also, gather ranked wrestlers per team for display.
     """
     teams = {}
+    wrestlers_by_team = {}
 
-    # Fetch all wrestlers for the specified season, grouped by weight class
+    # Fetch wrestlers grouped by weight class and get ranked individuals per team
     weight_classes = set([wrestler.weight_class for wrestler in Wrestler.query.filter_by(season_id=season_id).all()])
 
     for weight_class in weight_classes:
-        # Get all wrestlers for the weight class in the given season, ordered by Elo
+        # Get all wrestlers ordered by Elo rating
         wrestlers = Wrestler.query.filter_by(weight_class=weight_class, season_id=season_id).order_by(Wrestler.elo_rating.desc()).all()
 
-        # Loop through the top 8 wrestlers (rank 1 to 8)
+        # Calculate points and gather ranked individuals
         for rank, wrestler in enumerate(wrestlers[:8], start=1):
             team_name = wrestler.school
-            points = calculate_points(rank)  # Use your point calculation based on dynamic ranking
-
+            points = calculate_points(rank)
             if team_name in teams:
                 teams[team_name] += points
             else:
                 teams[team_name] = points
 
-    # Return a sorted list of teams by points in descending order
-    return sorted(teams.items(), key=lambda x: x[1], reverse=True)
+            # Collect ranked wrestlers per team
+            if team_name not in wrestlers_by_team:
+                wrestlers_by_team[team_name] = []
+            wrestlers_by_team[team_name].append((wrestler.name, rank, wrestler.weight_class))
 
-
+    # Return the team scores sorted by points and the wrestlers by team
+    sorted_team_scores = sorted(teams.items(), key=lambda x: x[1], reverse=True)
+    return sorted_team_scores, wrestlers_by_team
 
 def get_regional_team_scores(season_id, region):
     """
     Calculate team scores based on the same scoring structure but limited to a specific region.
-    Include all teams from the selected region, even if they have zero points.
+    Also, gather ranked wrestlers per team for regional display.
     """
     teams = {}
+    wrestlers_by_team = {}
 
-    # Initialize teams from the selected region with zero points
-    for team_name, team_info in D3_WRESTLING_SCHOOLS.items():
-        if team_info.get('region') == region:
-            teams[team_name] = 0
-
-    # Fetch all wrestlers for the specified season, grouped by weight class, and filtered by region
+    # Fetch wrestlers for the specified season, grouped by weight class, and filtered by region
     weight_classes = set([wrestler.weight_class for wrestler in Wrestler.query.filter_by(season_id=season_id).all()])
 
     for weight_class in weight_classes:
@@ -1008,14 +1009,25 @@ def get_regional_team_scores(season_id, region):
         # Loop through the top 8 wrestlers (rank 1 to 8) and calculate team points
         for rank, wrestler in enumerate(wrestlers[:8], start=1):
             team_name = wrestler.school
-            points = calculate_points(rank)  # Use the same scoring logic here
+            points = calculate_points(rank)
             if team_name in teams:
                 teams[team_name] += points
             else:
                 teams[team_name] = points
 
-    # Return a sorted list of teams by points in descending order
-    return sorted(teams.items(), key=lambda x: x[1], reverse=True)
+            # Collect ranked wrestlers per team
+            if team_name not in wrestlers_by_team:
+                wrestlers_by_team[team_name] = []
+            wrestlers_by_team[team_name].append((wrestler.name, rank, wrestler.weight_class))
+
+    # Ensure all teams are represented, even those with 0 points
+    for team_name, info in D3_WRESTLING_SCHOOLS.items():
+        if info.get("region") == region and team_name not in teams:
+            teams[team_name] = 0
+
+    # Return sorted team scores and the wrestlers by team
+    sorted_team_scores = sorted(teams.items(), key=lambda x: x[1], reverse=True)
+    return sorted_team_scores, wrestlers_by_team
 
 
 def calculate_points(rank):
@@ -1161,7 +1173,6 @@ def viewer_home():
 
 @app.route('/team-rankings', methods=['GET'])
 def team_rankings():
-    # Your existing logic for fetching and displaying team rankings
     selected_season_id = request.args.get('season_id')
     selected_region = request.args.get('region')
 
@@ -1178,25 +1189,26 @@ def team_rankings():
         flash("No seasons available.", "error")
         return redirect(url_for('home'))
 
-    # Get the name for the selected season
     selected_season_name = selected_season.name if selected_season else 'N/A'
 
-    # If a region is selected, fetch regional team scores, otherwise get overall team scores
+    # Fetch team scores and individual rankings based on national or regional selection
     if selected_region:
-        team_scores = get_regional_team_scores(selected_season.id, int(selected_region))
+        team_scores, wrestlers_by_team = get_regional_team_scores(selected_season.id, int(selected_region))
     else:
-        team_scores = get_team_scores(selected_season.id)
+        team_scores, wrestlers_by_team = get_team_scores(selected_season.id)
 
-    # Fetch available regions for the dropdown
     available_regions = sorted({info['region'] for info in D3_WRESTLING_SCHOOLS.values()})
 
-    return render_template('team_rankings.html',
-                           team_scores=team_scores,
-                           selected_season_id=selected_season.id,
-                           selected_region=selected_region,
-                           seasons=seasons,
-                           selected_season_name=selected_season_name,
-                           available_regions=available_regions)
+    return render_template(
+        'team_rankings.html',
+        team_scores=team_scores,
+        wrestlers_by_team=wrestlers_by_team,
+        selected_season_id=selected_season.id,
+        selected_region=selected_region,
+        seasons=seasons,
+        selected_season_name=selected_season_name,
+        available_regions=available_regions
+    )
 
 
 
