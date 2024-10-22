@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Team Rankings - NCAA Wrestling{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-5">Team Rankings for Season {{ selected_season_name }}</h1>
+
+    <!-- Custom CSS to fix dropdown arrow overlap -->
+    <style>
+        /* Ensure dropdowns have proper padding and alignment */
+        .custom-select {
+            padding-right: 30px; /* Ensure enough space for dropdown arrow */
+            text-align-last: center; /* Align text properly */
+            -webkit-appearance: none; /* Remove default styling on WebKit browsers */
+            -moz-appearance: none; /* Remove default styling on Mozilla browsers */
+            appearance: none; /* Remove default styling on all browsers */
+            background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 20 20"><polygon fill="%23343a40" points="0,0 20,0 10,10"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 10px center; /* Position arrow correctly */
+            background-size: 12px; /* Adjust size of arrow */
+        }
+    </style>
+
+    <!-- Form for selecting the season and region -->
+    <form action="{{ url_for('team_rankings') }}" method="GET" class="form-inline mb-4 justify-content-center">
+        <!-- Season Selection Dropdown -->
+        <div class="form-group mr-2">
+            <label for="seasonSelect" class="mr-2 font-weight-bold">Select Season:</label>
+            <select id="seasonSelect" name="season_id" class="form-control custom-select" onchange="this.form.submit()">
+                {% for season in seasons %}
+                <option value="{{ season.id }}" {% if season.id == selected_season_id %} selected {% endif %}>
+                    {{ season.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Region Selection Dropdown -->
+        <div class="form-group mr-2">
+            <label for="regionSelect" class="mr-2 font-weight-bold">Select Region:</label>
+            <select id="regionSelect" name="region" class="form-control custom-select" onchange="this.form.submit()">
+                <option value="" {% if not selected_region %} selected {% endif %}>National</option>
+                {% for region in available_regions %}
+                <option value="{{ region }}" {% if selected_region|string == region|string %} selected {% endif %}>
+                    Region {{ region }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    <!-- Display team rankings -->
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Rank</th>
+                    <th>Team</th>
+                    <th>Points</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team_name, points in team_scores %}
+                <tr>
+                    <td>{{ loop.index }}</td> <!-- Use loop.index for the rank -->
+                    <td>{{ team_name }}</td>
+                    <td>{{ points }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

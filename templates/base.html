@@ -145,6 +145,11 @@
                     <a class="nav-link" href="{{ url_for('global_leaderboards') }}">Statistical Leaders</a>
                 </li>
 
+                <!-- Added Team Rankings Link -->
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('team_rankings') }}">Team Rankings</a>
+                </li>
+
                 <!-- Link to Manage Seasons for Admins -->
                 {% if current_user.is_authenticated and current_user.is_admin %}
                 <li class="nav-item">
