@@ -986,8 +986,14 @@ def get_team_scores(season_id):
 def get_regional_team_scores(season_id, region):
     """
     Calculate team scores based on the same scoring structure but limited to a specific region.
+    Include all teams from the selected region, even if they have zero points.
     """
     teams = {}
+
+    # Initialize teams from the selected region with zero points
+    for team_name, team_info in D3_WRESTLING_SCHOOLS.items():
+        if team_info.get('region') == region:
+            teams[team_name] = 0
 
     # Fetch all wrestlers for the specified season, grouped by weight class, and filtered by region
     weight_classes = set([wrestler.weight_class for wrestler in Wrestler.query.filter_by(season_id=season_id).all()])
@@ -1002,8 +1008,7 @@ def get_regional_team_scores(season_id, region):
         # Loop through the top 8 wrestlers (rank 1 to 8) and calculate team points
         for rank, wrestler in enumerate(wrestlers[:8], start=1):
             team_name = wrestler.school
-            points = calculate_points(rank)  # Use the same point calculation method
-
+            points = calculate_points(rank)  # Use the same scoring logic here
             if team_name in teams:
                 teams[team_name] += points
             else:
