@@ -20,6 +20,22 @@
         </form>
     </div>
 
+    <!-- Dropdown to select weight class -->
+    <div class="form-group">
+        <form action="{{ url_for('global_leaderboards') }}" method="GET">
+            <input type="hidden" name="season_id" value="{{ selected_season_id }}"> <!-- Ensure season_id persists -->
+            <label for="weightClassSelect" class="font-weight-bold">Select a weight class:</label>
+            <select id="weightClassSelect" name="weight_class" class="form-control custom-select" aria-label="Select a weight class" onchange="this.form.submit()">
+                <option value="" {% if not selected_weight_class %} selected {% endif %}>All Weight Classes</option>
+                {% for weight in weight_classes %}
+                <option value="{{ weight }}" {% if selected_weight_class|string == weight|string %} selected {% endif %}>
+                    {{ weight }} lbs
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
     <!-- Most Dominant Wrestlers -->
     <div class="row mb-5">
         <div class="col-md-12">
@@ -34,7 +50,7 @@
                                     {{ wrestler.name }} ({{ wrestler.weight_class }} lbs)
                                 </a>
                             </span>
-                            <span class="badge badge-danger badge-pill">Dominance: {{ wrestler.dominance_score }}</span>
+                            <span class="badge badge-danger badge-pill">Dominance: {{ "%.2f"|format(wrestler.dominance_score) }}</span>
                         </li>
                         {% endfor %}
                     </ul>

@@ -528,7 +528,7 @@ class Match(db.Model):
         self.decision = self.win_type == 'Decision'
         self.injury_default = self.win_type == 'Injury Default'
         self.sudden_victory = self.win_type in ['SV-1', 'Sudden Victory', 'Sudden Victory - 1']  # Include variations
-        self.double_overtime = self.win_type in ['2-OT', 'Double Overtime']
+        self.double_overtime = self.win_type in ['2-OT', 'Double Overtime',]
         self.tiebreaker_1 = self.win_type in ['TB-1', 'Tiebreaker - 1', 'tiebreaker - 1']
         self.tiebreaker_2 = self.win_type in ['TB-2', 'Tiebreaker - 2 (Riding Time)', 'tiebreaker - 2 (riding time)' ]
         self.medical_forfeit = self.win_type == 'Medical Forfeit'
@@ -795,16 +795,17 @@ def recalculate_dominance(wrestler_id, season_id):
 
 
 
-def get_stat_leaders(stat_column, season_id=None, limit=10):
+def get_stat_leaders(stat_column, season_id=None, limit=10, weight_class=None):
     """
     Fetch top wrestlers based on a specific stat (falls, tech falls, major decisions)
     and return their rank and count of matches with that stat.
-    
+
     Parameters:
         stat_column (str): The stat to rank wrestlers by (e.g., 'Fall', 'Technical Fall', etc.)
         season_id (int): The ID of the season to filter by. Defaults to None (all seasons).
         limit (int): The number of top wrestlers to return. Defaults to 10.
-    
+        weight_class (int): The weight class to filter by. Defaults to None (all weight classes).
+
     Returns:
         List of top wrestlers and their stat counts.
     """
@@ -817,11 +818,15 @@ def get_stat_leaders(stat_column, season_id=None, limit=10):
     if season_id:
         query = query.filter(Match.season_id == season_id)
 
+    # If a weight class is provided, filter by the selected weight class
+    if weight_class:
+        query = query.filter(Wrestler.weight_class == weight_class)
+
     # Group by wrestler and order by stat count (descending)
     query = query.group_by(Wrestler.id).order_by(db.func.count(Match.id).desc())
 
     # Limit the number of results and return the top wrestlers
-    return query[:int(limit)] if limit is not None else query.all()
+    return query.limit(int(limit)).all() if limit is not None else query.all()
 
 
 # Utility functions and decorators (admin_required goes here)
@@ -2547,13 +2552,25 @@ def global_leaderboards():
     # Log current season info
     logger.info(f"Current season: {current_season_name}")
 
-    # Fetch top wrestlers for each win type and the selected season
-    fall_leaders = get_stat_leaders('Fall', limit=10, season_id=current_season.id)
-    tech_fall_leaders = get_stat_leaders('Technical Fall', limit=10, season_id=current_season.id)
-    major_decision_leaders = get_stat_leaders('Major Decision', limit=10, season_id=current_season.id)
+    # Get the selected weight class from the request
+    selected_weight_class = request.args.get('weight_class')
 
-    # Find the top 10 most dominant wrestlers for the selected season
-    most_dominant_wrestlers = Wrestler.query.filter_by(season_id=current_season.id).order_by(Wrestler.dominance_score.desc()).limit(10).all()
+    # Fetch top wrestlers for each win type and the selected season
+    fall_leaders = get_stat_leaders('Fall', season_id=current_season.id, weight_class=selected_weight_class, limit=20)
+    tech_fall_leaders = get_stat_leaders('Technical Fall', season_id=current_season.id, weight_class=selected_weight_class, limit=20)
+    major_decision_leaders = get_stat_leaders('Major Decision', season_id=current_season.id, weight_class=selected_weight_class, limit=20)
+
+    # Find the top 20 most dominant wrestlers for the selected season and weight class
+    most_dominant_wrestlers = Wrestler.query.filter_by(season_id=current_season.id)
+
+    # If a weight class is selected, filter by weight class
+    if selected_weight_class:
+        most_dominant_wrestlers = most_dominant_wrestlers.filter_by(weight_class=selected_weight_class)
+
+    most_dominant_wrestlers = most_dominant_wrestlers.order_by(Wrestler.dominance_score.desc()).limit(20).all()
+
+    # Pass weight classes to the template
+    weight_classes = WEIGHT_CLASSES  # Assuming this is defined in your app
 
     return render_template('global_leaderboards.html',
                            fall_leaders=fall_leaders,
@@ -2562,38 +2579,14 @@ def global_leaderboards():
                            most_dominant_wrestlers=most_dominant_wrestlers,
                            current_season_name=current_season_name,
                            seasons=seasons,
-                           selected_season_id=current_season.id)
+                           selected_season_id=current_season.id,
+                           selected_weight_class=selected_weight_class,
+                           weight_classes=weight_classes)  # Pass weight classes to the template
 
 
 
 
-def get_stat_leaders(stat_column, season_id=None, limit=10):
-    """
-    Fetch top wrestlers based on a specific stat (falls, tech falls, major decisions)
-    and return their rank and count of matches with that stat.
-    
-    Parameters:
-        stat_column (str): The stat to rank wrestlers by (e.g., 'Fall', 'Technical Fall', etc.)
-        season_id (int): The ID of the season to filter by. Defaults to None (all seasons).
-        limit (int): The number of top wrestlers to return. Defaults to 10.
-    
-    Returns:
-        List of top wrestlers and their stat counts.
-    """
-    # Construct the base query
-    query = db.session.query(Wrestler, db.func.count(Match.id).label(f'{stat_column}_count'))\
-        .join(Match, db.or_(Wrestler.id == Match.wrestler1_id, Wrestler.id == Match.wrestler2_id))\
-        .filter(Match.win_type == stat_column, Wrestler.id == Match.winner_id)
 
-    # If a season is provided, filter by the selected season
-    if season_id:
-        query = query.filter(Match.season_id == season_id)
-
-    # Group by wrestler and order by stat count (descending)
-    query = query.group_by(Wrestler.id).order_by(db.func.count(Match.id).desc())
-
-    # Limit the number of results and return the top wrestlers
-    return query.limit(int(limit)).all() if limit is not None else query.all()
 
 
 
