@@ -69,7 +69,7 @@
         <h3 class="mt-5">Wrestlers for {{ selected_season.name }}</h3>
 
         {% if grouped_wrestlers %}
-        <!-- Organize wrestlers by weight class -->
+        <!-- Organize wrestlers by school -->
         <form action="{{ url_for('push_wrestlers_to_new_season') }}" method="POST">
             <input type="hidden" name="current_season_id" value="{{ selected_season.id }}">
             <div class="form-group">
@@ -83,9 +83,11 @@
                     {% endfor %}
                 </select>
             </div>
-            {% for weight_class, wrestlers in grouped_wrestlers.items() %}
-            <div class="weight-class-section mt-4">
-                <h4>{{ weight_class }} lbs</h4>
+
+            <!-- Loop through each school -->
+            {% for school, wrestlers in grouped_wrestlers.items() %}
+            <div class="school-section mt-4">
+                <h4>{{ school }}</h4>
                 <table class="table table-bordered">
                     <thead>
                         <tr>
@@ -97,7 +99,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for wrestler in wrestlers %}
+                        <!-- Sort wrestlers within each school by weight class -->
+                        {% for wrestler in wrestlers|sort(attribute='weight_class') %}
                         <tr>
                             <td>{{ wrestler.name }}</td>
                             <!-- Dropdown for school, pre-populated with current school -->
