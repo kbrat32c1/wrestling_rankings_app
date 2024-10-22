@@ -560,6 +560,10 @@ class Match(db.Model):
         }
 
 
+
+
+
+
 # SQLAlchemy event listeners
 @event.listens_for(Match, 'before_insert')
 def before_insert_listener(mapper, connection, target):
@@ -1662,8 +1666,12 @@ def edit_wrestler(wrestler_id):
 def delete_wrestler(wrestler_id):
     wrestler = Wrestler.query.get_or_404(wrestler_id)
 
-    # Get all matches of the wrestler
-    matches = wrestler.matches_as_wrestler1.all() + wrestler.matches_as_wrestler2.all()
+    # Get the current season ID from the request
+    current_season_id = request.args.get('season_id')  # Assuming you pass the current season ID in the query parameters
+
+    # Get matches for the current season
+    matches = wrestler.matches_as_wrestler1.filter_by(season_id=current_season_id).all() + \
+              wrestler.matches_as_wrestler2.filter_by(season_id=current_season_id).all()
 
     # Adjust win/loss and stats for opponents in all matches
     for match in matches:
@@ -1674,17 +1682,14 @@ def delete_wrestler(wrestler_id):
         else:
             opponent.wins -= 1
 
-        # Determine the current season based on the match date
-        season_id = match.season_id  # Assuming each match has a season_id field
-
         # Recalculate stats for opponent
-        recalculate_elo(opponent.id, season_id)  # Use opponent's ID
-        recalculate_rpi(opponent.id, season_id)
-        recalculate_hybrid(opponent.id, season_id)
-        recalculate_dominance(opponent.id, season_id)
+        recalculate_elo(opponent.id, current_season_id)
+        recalculate_rpi(opponent.id, current_season_id)
+        recalculate_hybrid(opponent.id, current_season_id)
+        recalculate_dominance(opponent.id, current_season_id)
 
-        # Recalculate wrestler stats for opponents
-        recalculate_wrestler_stats(opponent.id, season_id)
+        # Recalculate wrestler stats for opponents (still necessary)
+        recalculate_wrestler_stats(opponent.id, current_season_id)
 
         # Delete the match from the database
         db.session.delete(match)
@@ -1693,8 +1698,8 @@ def delete_wrestler(wrestler_id):
     db.session.delete(wrestler)
     db.session.commit()
 
-    flash(f'Wrestler {wrestler.name} and all their matches have been deleted.', 'success')
-    return redirect(url_for('home', season_id=request.args.get('season_id')))
+    flash(f'Wrestler {wrestler.name} and all their matches in the current season have been deleted.', 'success')
+    return redirect(url_for('home', season_id=current_season_id))
 
 
 
