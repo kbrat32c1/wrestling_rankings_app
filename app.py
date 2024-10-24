@@ -2907,6 +2907,15 @@ def push_wrestlers_to_new_season():
         flash('No wrestlers found in the current season.', 'danger')
         return redirect(url_for('manage_seasons'))
 
+    def get_next_year_in_school(current_year):
+        next_year = {
+            'FR': 'SO',
+            'SO': 'JR',
+            'JR': 'SR',
+            'SR': 'SR'  # Seniors stay seniors
+        }
+        return next_year.get(current_year, 'FR')  # Default to FR if unknown
+
     # Iterate through wrestlers and push them to the new season
     for wrestler in wrestlers:
         # Check if the wrestler is graduating or not returning
@@ -2916,15 +2925,21 @@ def push_wrestlers_to_new_season():
             continue  # Skip this wrestler if they're graduating or a senior
 
         # Update year in school (incrementing for next season)
-        year_in_school = request.form.get(f'year_in_school_{wrestler.id}', wrestler.year_in_school)
-        if year_in_school == 'FR':
-            new_year_in_school = 'SO'
-        elif year_in_school == 'SO':
-            new_year_in_school = 'JR'
-        elif year_in_school == 'JR':
-            new_year_in_school = 'SR'
-        else:
-            new_year_in_school = 'SR'  # Seniors remain seniors if they are pushed forward
+        new_year_in_school = get_next_year_in_school(
+            request.form.get(f'year_in_school_{wrestler.id}', wrestler.year_in_school)
+        )
+
+        # Check if this wrestler already exists in the new season to prevent duplicates
+        existing_wrestler = Wrestler.query.filter_by(
+            name=wrestler.name,
+            school=request.form.get(f'school_{wrestler.id}', wrestler.school),
+            weight_class=request.form.get(f'weight_class_{wrestler.id}', wrestler.weight_class),
+            season_id=new_season_id
+        ).first()
+
+        if existing_wrestler:
+            # Wrestler already exists, skip adding this one
+            continue
 
         # Create new wrestler entry for the new season
         new_wrestler = Wrestler(
@@ -2938,8 +2953,13 @@ def push_wrestlers_to_new_season():
         )
         db.session.add(new_wrestler)
 
-    db.session.commit()
-    flash('Wrestlers have been successfully pushed to the new season!', 'success')
+    try:
+        db.session.commit()
+        flash('Wrestlers have been successfully pushed to the new season!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error pushing wrestlers to the new season: {e}', 'danger')
+
     return redirect(url_for('manage_seasons'))
 
 
@@ -2965,18 +2985,20 @@ def manage_seasons():
         # Fetch all wrestlers for the selected season
         wrestlers = Wrestler.query.filter_by(season_id=selected_season.id).all()
 
-        # Group wrestlers by school
+        # Group wrestlers by the official school name
         for wrestler in wrestlers:
-            school = wrestler.school
-            
-            # Ensure the school is in the grouped_wrestlers dictionary
-            if school not in grouped_wrestlers:
-                grouped_wrestlers[school] = []
-            
-            # Add wrestler to the school's list
-            grouped_wrestlers[school].append(wrestler)
+            # Match wrestler school to the correct official name from D3_WRESTLING_SCHOOLS
+            official_name = next(
+                (school for school in D3_WRESTLING_SCHOOLS if wrestler.school.lower() == school.lower()), 
+                wrestler.school
+            )
 
-    # Sort the grouped_wrestlers dictionary by school name alphabetically
+            # Add wrestler to the grouped_wrestlers under the official school name
+            if official_name not in grouped_wrestlers:
+                grouped_wrestlers[official_name] = []
+            grouped_wrestlers[official_name].append(wrestler)
+
+    # Sort the grouped_wrestlers dictionary by official school name alphabetically
     grouped_wrestlers = dict(sorted(grouped_wrestlers.items()))
 
     # Ensure wrestlers within each school are sorted by weight class
@@ -2987,16 +3009,15 @@ def manage_seasons():
     school_options = list(D3_WRESTLING_SCHOOLS.keys())
     weight_class_options = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285]
 
-    return render_template('manage_seasons.html', 
-                           seasons=seasons, 
-                           selected_season=selected_season,
-                           grouped_wrestlers=grouped_wrestlers,
-                           school_options=school_options,
-                           weight_class_options=weight_class_options)
-
-
-
-
+    return render_template(
+        'manage_seasons.html',
+        seasons=seasons,
+        selected_season=selected_season,
+        grouped_wrestlers=grouped_wrestlers,
+        school_options=school_options,
+        weight_class_options=weight_class_options,
+        normalize_school_name=normalize_school_name  # Pass the function to the template
+    )
 
 
 

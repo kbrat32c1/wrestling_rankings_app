@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manage Seasons</title>
+</head>
+<body>
+    <h1>Manage Seasons</h1>
+    <ul>
+        {% for season in seasons %}
+            <li>{{ season.year }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

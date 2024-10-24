@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Wrestlers Page</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <h1>Admin - Wrestlers</h1>
+
+    <div>
+        <label for="season-select">Select Season:</label>
+        <select id="season-select" onchange="changeSeason()">
+            {% for season in seasons %}
+                <option value="{{ season.id }}" {% if season.id == season_id %}selected{% endif %}>
+                    {{ season.name }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div>
+        <h2>Wrestlers List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>School</th>
+                    <th>Weight Class</th>
+                    <th>Wins</th>
+                    <th>Losses</th>
+                    <th>Year in School</th>
+                    <th>Elo</th>
+                    <th>RPI</th>
+                    <th>Hybrid</th>
+                    <th>Dominance</th>
+                    <th>Falls</th>
+                    <th>Tech Falls</th>
+                    <th>Major Decisions</th>
+                    <th>Graduating</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for school, wrestlers in wrestlers_by_school.items() %}
+                    {% for wrestler in wrestlers %}
+                    <tr>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="name">{{ wrestler.name }}</td>
+                        <td>
+                            <select class="school-select" data-id="{{ wrestler.id }}" data-season="{{ season_id }}">
+                                {% for school_name in schools_list %}
+                                    <option value="{{ school_name }}" {% if school_name == wrestler.school %}selected{% endif %}>{{ school_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <select class="weight-class-select" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="weight_class">
+                                {% for weight_class in WEIGHT_CLASSES %}
+                                    <option value="{{ weight_class }}" {% if weight_class == wrestler.weight_class %}selected{% endif %}>{{ weight_class }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="wins">{{ wrestler.wins }}</td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="losses">{{ wrestler.losses }}</td>
+                        <td>
+                            <select class="year-in-school-select" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="year_in_school">
+                                <option value="Freshman" {% if wrestler.year_in_school == 'Freshman' %}selected{% endif %}>Freshman</option>
+                                <option value="Sophomore" {% if wrestler.year_in_school == 'Sophomore' %}selected{% endif %}>Sophomore</option>
+                                <option value="Junior" {% if wrestler.year_in_school == 'Junior' %}selected{% endif %}>Junior</option>
+                                <option value="Senior" {% if wrestler.year_in_school == 'Senior' %}selected{% endif %}>Senior</option>
+                            </select>
+                        </td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="elo_rating">{{ wrestler.elo_rating }}</td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="rpi">{{ wrestler.rpi }}</td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="hybrid">{{ wrestler.hybrid }}</td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="dominance">{{ wrestler.dominance_score }}</td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="falls">{{ wrestler.falls }}</td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="tech_falls">{{ wrestler.tech_falls }}</td>
+                        <td contenteditable="true" class="editable" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" data-field="major_decisions">{{ wrestler.major_decisions }}</td>
+                        <td>
+                            <input type="checkbox" class="graduating-toggle" data-id="{{ wrestler.id }}" data-season="{{ season_id }}" {% if wrestler.graduating %}checked{% endif %}>
+                        </td>
+                        <td>
+                            <a href="#" class="edit-wrestler-btn" data-id="{{ wrestler.id }}" data-season="{{ season_id }}">Edit</a>
+                            <a href="#" class="delete-btn">Delete</a>
+                            <a href="#" class="view-matches-btn" data-id="{{ wrestler.id }}" data-season="{{ season_id }}">View Matches</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function changeSeason() {
+            const seasonId = document.getElementById('season-select').value;
+
+            fetch('/set_active_season', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ season_id: seasonId })
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Reload the page to reflect the changes
+                    window.location.reload();
+                } else {
+                    return response.json().then(data => {
+                        alert(data.message);
+                    });
+                }
+            })
+            .catch(error => console.error('Error setting active season:', error));
+        }
+
+        // Inline edit event for other fields
+        document.querySelectorAll('.editable').forEach(cell => {
+            cell.addEventListener('blur', function () {
+                const wrestlerId = this.getAttribute('data-id');
+                const field = this.getAttribute('data-field');
+                const newValue = this.innerText.trim();
+                const seasonId = this.getAttribute('data-season');
+
+                fetch(`/update_wrestler/${wrestlerId}?season_id=${seasonId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ field, value: newValue })
+                }).then(response => response.json()).then(data => {
+                    if (!data.success) {
+                        alert(`Error updating wrestler: ${data.message}`);
+                    }
+                }).catch(error => console.error('Error:', error));
+            });
+        });
+
+        // Update school select change
+        document.querySelectorAll('.school-select').forEach(select => {
+            select.addEventListener('change', function () {
+                const wrestlerId = this.getAttribute('data-id');
+                const newSchool = this.value;
+                const seasonId = this.getAttribute('data-season');
+
+                fetch(`/update_wrestler/${wrestlerId}?season_id=${seasonId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ field: 'school', value: newSchool })
+                }).then(response => response.json()).then(data => {
+                    if (!data.success) {
+                        alert(`Error updating school: ${data.message}`);
+                    }
+                }).catch(error => console.error('Error:', error));
+            });
+        });
+
+        // Update weight class select change
+        document.querySelectorAll('.weight-class-select').forEach(select => {
+            select.addEventListener('change', function () {
+                const wrestlerId = this.getAttribute('data-id');
+                const newWeightClass = this.value;
+                const seasonId = this.getAttribute('data-season');
+
+                fetch(`/update_wrestler/${wrestlerId}?season_id=${seasonId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ field: 'weight_class', value: newWeightClass })
+                }).then(response => response.json()).then(data => {
+                    if (!data.success) {
+                        alert(`Error updating weight class: ${data.message}`);
+                    }
+                }).catch(error => console.error('Error:', error));
+            });
+        });
+
+        // Update year in school select change
+        document.querySelectorAll('.year-in-school-select').forEach(select => {
+            select.addEventListener('change', function () {
+                const wrestlerId = this.getAttribute('data-id');
+                const newYearInSchool = this.value;
+                const seasonId = this.getAttribute('data-season');
+
+                fetch(`/update_wrestler/${wrestlerId}?season_id=${seasonId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ field: 'year_in_school', value: newYearInSchool })
+                }).then(response => response.json()).then(data => {
+                    if (!data.success) {
+                        alert(`Error updating year in school: ${data.message}`);
+                    }
+                }).catch(error => console.error('Error:', error));
+            });
+        });
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Admin Dashboard</h1>
+        <p>Welcome to the Admin Dashboard. Only authorized users can access this page.</p>
+        <ul>
+            <li><a href="{{ url_for('admin_wrestlers') }}">Manage Wrestlers</a></li>
+            <li><a href="{{ url_for('admin_teams') }}">Manage Teams</a></li>
+            <li><a href="{{ url_for('admin_seasons') }}">Manage Seasons</a></li>
+            <!-- Add more links to different admin sections as needed -->
+        </ul>
+    </div>
+</body>
+</html>
