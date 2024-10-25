@@ -217,7 +217,7 @@ SCHOOL_ALIASES = {
     "Keystone College": ["Keystone"],
     "Lycoming College": ["Lycoming"],
     "New Jersey City University": ["NJCU", "New Jersey City"],
-    "Penn State Erie, The Behrend College": ["Penn State Erie", "Behrend College", "PSU Behrend"],
+    "Penn State Erie, The Behrend College": ["Penn State Erie", "Behrend College", "PSU Behrend", "Penn State Behrend"],
     "Pennsylvania College of Technology": ["Penn College of Tech", "Penn Tech"],
     "Rochester Institute of Technology": ["RIT", "Rochester Tech"],
     "St. John's Fisher University": ["St. John's Fisher", "SJFC", "St. John Fisher"],
@@ -234,7 +234,7 @@ SCHOOL_ALIASES = {
     "Elizabethtown College": ["Elizabethtown", "E-town"],
     "Gettysburg College": ["Gettysburg"],
     "Johns Hopkins University": ["Johns Hopkins", "Hopkins", "JHU"],
-    "King's College": ["King's"],
+    "King's College": ["King's", "King`s (PA)"],
     "Marymount University": ["Marymount"],
     "McDaniel College": ["McDaniel"],
     "Messiah University": ["Messiah"],
@@ -246,7 +246,7 @@ SCHOOL_ALIASES = {
     "University of Scranton": ["Scranton"],
     "Ursinus College": ["Ursinus"],
     "US Merchant Marine Academy": ["Merchant Marine", "USMMA"],
-    "York College of Pennsylvania": ["York College PA", "York PA"],
+    "York College of Pennsylvania": ["York College PA", "York PA", "York (PA)"],
     "Averett University": ["Averett"],
     "Baldwin Wallace University": ["Baldwin Wallace", "BW"],
     "Ferrum College": ["Ferrum"],
@@ -258,13 +258,13 @@ SCHOOL_ALIASES = {
     "Otterbein University": ["Otterbein"],
     "Randolph College": ["Randolph"],
     "Roanoke College": ["Roanoke"],
-    "Saint Vincent College": ["St. Vincent", "Saint Vincent"],
+    "Saint Vincent College": ["St. Vincent", "Saint Vincent", "St. Vincent College"],
     "Shenandoah University": ["Shenandoah"],
     "Southern Virginia University": ["Southern Virginia", "SVU"],
     "Thiel College": ["Thiel"],
     "University of Mount Union": ["Mount Union", "UMU"],
     "Washington & Jefferson College": ["Washington & Jefferson", "W&J"],
-    "Washington and Lee University": ["Washington and Lee", "W&L"],
+    "Washington and Lee University": ["Washington and Lee", "W&L", "Washington & Lee"],
     "Waynesburg University": ["Waynesburg"],
     "Wilmington College": ["Wilmington"],
     "Adrian College": ["Adrian"],
@@ -284,7 +284,7 @@ SCHOOL_ALIASES = {
     "University of Chicago": ["Chicago", "UChicago"],
     "University of Wisconsin-Whitewater": ["Wisconsin Whitewater", "UW Whitewater", "Wisconsin-Whitewater"],
     "Wabash College": ["Wabash"],
-    "Wheaton College": ["Wheaton"],
+    "Wheaton College": ["Wheaton", "Wheaton (IL)"],
     "Blackburn College": ["Blackburn"],
     "Buena Vista University": ["Buena Vista", "BVU"],
     "Central College": ["Central"],
@@ -313,12 +313,12 @@ SCHOOL_ALIASES = {
     "Milwaukee School of Engineering": ["MSOE", "Milwaukee Engineering"],
     "Northland College": ["Northland"],
     "Pacific University": ["Pacific"],
-    "Saint Johns University": ["Saint Johns", "St. Johns", "SJU"],
+    "Saint Johns University": ["Saint Johns", "St. Johns", "SJU", "St. Johns (MN)"],
     "University of Wisconsin-Eau Claire": ["Wisconsin-Eau Claire", "Wisconsin Eau Claire", "UW Eau Claire"],
     "University of Wisconsin-La Crosse": ["Wisconsin La Crosse", "UW La Crosse", "Wisconsin-La Crosse"],
     "University of Wisconsin-Oshkosh": ["Wisconsin Oshkosh", "UW Oshkosh", "Wisconsin-Oshkosh"],
-    "University of Wisconsin-Platteville": ["Wisconsin Platteville", "UW Platteville"],
-    "University of Wisconsin-Stevens Point": ["Wisconsin Stevens Point", "UW Stevens Point"]
+    "University of Wisconsin-Platteville": ["Wisconsin Platteville", "UW Platteville", "Wisconsin-Platteville"],
+    "University of Wisconsin-Stevens Point": ["Wisconsin Stevens Point", "UW Stevens Point", "Wisconsin-Stevens Point"]
 }
 
 
@@ -798,10 +798,10 @@ def recalculate_dominance(wrestler_id, season_id):
 def get_stat_leaders(stat_column, season_id=None, limit=10, weight_class=None):
     """
     Fetch top wrestlers based on a specific stat (falls, tech falls, major decisions)
-    and return their rank and count of matches with that stat.
+    using their manually updated stats in the Wrestler model.
 
     Parameters:
-        stat_column (str): The stat to rank wrestlers by (e.g., 'Fall', 'Technical Fall', etc.)
+        stat_column (str): The stat to rank wrestlers by (e.g., 'falls', 'tech_falls', 'major_decisions')
         season_id (int): The ID of the season to filter by. Defaults to None (all seasons).
         limit (int): The number of top wrestlers to return. Defaults to 10.
         weight_class (int): The weight class to filter by. Defaults to None (all weight classes).
@@ -809,24 +809,33 @@ def get_stat_leaders(stat_column, season_id=None, limit=10, weight_class=None):
     Returns:
         List of top wrestlers and their stat counts.
     """
-    # Construct the base query
-    query = db.session.query(Wrestler, db.func.count(Match.id).label(f'{stat_column}_count'))\
-        .join(Match, db.or_(Wrestler.id == Match.wrestler1_id, Wrestler.id == Match.wrestler2_id))\
-        .filter(Match.win_type == stat_column, Wrestler.id == Match.winner_id)
+    # Map the input stat_column to the actual column names in the Wrestler model
+    stat_mapping = {
+        'Fall': Wrestler.falls,
+        'Technical Fall': Wrestler.tech_falls,
+        'Major Decision': Wrestler.major_decisions
+    }
+
+    # Ensure the stat_column is valid
+    if stat_column not in stat_mapping:
+        raise ValueError(f"Invalid stat_column: {stat_column}")
+
+    # Construct the base query using manually updated stats
+    query = db.session.query(Wrestler).filter(stat_mapping[stat_column] > 0)
 
     # If a season is provided, filter by the selected season
     if season_id:
-        query = query.filter(Match.season_id == season_id)
+        query = query.filter(Wrestler.season_id == season_id)
 
     # If a weight class is provided, filter by the selected weight class
     if weight_class:
         query = query.filter(Wrestler.weight_class == weight_class)
 
-    # Group by wrestler and order by stat count (descending)
-    query = query.group_by(Wrestler.id).order_by(db.func.count(Match.id).desc())
+    # Order by the specific stat count and limit the results
+    query = query.order_by(stat_mapping[stat_column].desc()).limit(limit)
 
-    # Limit the number of results and return the top wrestlers
-    return query.limit(int(limit)).all() if limit is not None else query.all()
+    # Return the list of wrestlers and their stat counts
+    return [(wrestler, getattr(wrestler, stat_mapping[stat_column].key)) for wrestler in query.all()]
 
 
 # Utility functions and decorators (admin_required goes here)
@@ -1579,7 +1588,14 @@ def add_match():
                 if not match_time_input:
                     flash('Match time is required for falls and technical falls.', 'error')
                     return redirect(url_for('add_match'))
-                match_time = datetime.strptime(match_time_input, '%H:%M:%S').time()
+                
+                # Convert match time to a string in MM:SS format
+                try:
+                    minutes, seconds = map(int, match_time_input.split(':'))
+                    match_time = f"{minutes}:{seconds:02}"
+                except ValueError:
+                    flash('Invalid match time format. Please use MM:SS.', 'error')
+                    return redirect(url_for('add_match'))
 
             # Create the new match
             new_match = Match(
@@ -1606,7 +1622,6 @@ def add_match():
             # Commit the new match and updates
             db.session.commit()
 
-
             # Recalculate stats for both wrestlers with the season_id
             recalculate_elo(wrestler1.id, season_id)
             recalculate_elo(wrestler2.id, season_id)
@@ -1616,10 +1631,8 @@ def add_match():
             recalculate_hybrid(wrestler2.id, season_id)
             recalculate_dominance(wrestler1.id, season_id)
             recalculate_dominance(wrestler2.id, season_id)
-            # After committing the match
             recalculate_wrestler_stats(wrestler1.id, season_id)
             recalculate_wrestler_stats(wrestler2.id, season_id)
-
 
             flash(f'Match added: {wrestler1.name} vs {wrestler2.name}', 'success')
             return redirect(url_for('home', season_id=season_id))
@@ -1643,8 +1656,6 @@ def add_match():
         } for w in wrestlers
     ]
     return render_template('add_match.html', wrestlers=serialized_wrestlers, weight_classes=WEIGHT_CLASSES, seasons=Season.query.all(), season_id=request.args.get('season_id'))
-
-
 
 
 
@@ -1676,16 +1687,21 @@ def edit_match(match_id):
             if match.win_type in ['Decision', 'Major Decision']:
                 # For Decision and Major Decision, clear match_time
                 match.match_time = None
-            elif match_time_str:  
-                # Convert the match_time string to a time object if provided
-                match.match_time = datetime.strptime(match_time_str, '%H:%M:%S').time()
+            elif match_time_str:
+                # Parse match_time in MM:SS format
+                try:
+                    minutes, seconds = map(int, match_time_str.split(':'))
+                    match.match_time = f"{minutes}:{seconds:02}"  # Ensure two digits for seconds
+                except ValueError:
+                    flash('Invalid match time format. Please use MM:SS.', 'error')
+                    return redirect(url_for('edit_match', match_id=match.id, season_id=match.season_id))
             else:
-                match.match_time = None  # Set match_time to None if not provided
+                match.match_time = None
 
             # Include season_id from the form or fallback to the current match's season
             season_id = request.form.get('season_id', match.season_id)
             if season_id:
-                season_id = int(season_id)  # Convert to int only if it's not None
+                season_id = int(season_id)
             else:
                 app.logger.error("Missing season_id in form data!")
                 flash('Missing season_id, please try again.', 'error')
@@ -1723,10 +1739,8 @@ def edit_match(match_id):
             recalculate_hybrid(wrestler2.id, season_id)
             recalculate_dominance(wrestler1.id, season_id)
             recalculate_dominance(wrestler2.id, season_id)
-            # After committing the match
             recalculate_wrestler_stats(wrestler1.id, season_id)
             recalculate_wrestler_stats(wrestler2.id, season_id)
-
 
             # Commit all changes
             db.session.commit()
@@ -1756,10 +1770,30 @@ def edit_wrestler(wrestler_id):
 
     if request.method == 'POST':
         # Get the updated values from the form
-        wrestler.name = request.form['name'].strip()
-        wrestler.school = request.form['school'].strip()
-        wrestler.weight_class = int(request.form['weight_class'])
-        wrestler.year_in_school = request.form['year_in_school']  # New field for year in school
+        new_name = request.form['name'].strip()
+        new_school = request.form['school'].strip()
+        new_weight_class = int(request.form['weight_class'])
+        new_year_in_school = request.form['year_in_school']  # New field for year in school
+
+        # Check if the weight class has changed
+        weight_class_changed = wrestler.weight_class != new_weight_class
+
+        # Update the wrestler's details
+        wrestler.name = new_name
+        wrestler.school = new_school
+        wrestler.year_in_school = new_year_in_school
+
+        # If the weight class changes, reset the Elo, RPI, and other stats
+        if weight_class_changed:
+            wrestler.weight_class = new_weight_class
+            wrestler.elo_rating = 1500  # Reset Elo to default starting value
+            wrestler.rpi = 0
+            wrestler.dominance_score = 0
+            wrestler.wins = 0
+            wrestler.losses = 0
+            wrestler.falls = 0
+            wrestler.tech_falls = 0
+            wrestler.major_decisions = 0
 
         # Validate the form fields
         if not wrestler.name or wrestler.school not in D3_WRESTLING_SCHOOLS or wrestler.weight_class not in WEIGHT_CLASSES:
@@ -1767,26 +1801,15 @@ def edit_wrestler(wrestler_id):
             return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS, season_id=season_id)
 
         # Commit changes to the database
-        db.session.commit()
+        try:
+            db.session.commit()
+            flash(f'Wrestler {wrestler.name} has been updated.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'An error occurred while updating wrestler: {str(e)}', 'error')
+            return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS, season_id=season_id)
 
-        # Recalculate stats for the wrestler after editing
-        recalculate_elo(wrestler.id, season_id)  # Use wrestler.id instead of wrestler1/wrestler2
-        recalculate_rpi(wrestler.id, season_id)
-        recalculate_hybrid(wrestler.id, season_id)
-        recalculate_dominance(wrestler.id, season_id)
-
-        # If you need to recalculate stats for other wrestlers based on the changes
-        # You should fetch them here if they are directly affected, otherwise, remove these lines
-        # Example if you need to get other wrestlers based on their weight class
-        related_wrestlers = Wrestler.query.filter_by(weight_class=wrestler.weight_class, season_id=season_id).all()
-        for related_wrestler in related_wrestlers:
-            recalculate_wrestler_stats(related_wrestler.id, season_id)
-
-        # Commit all recalculations
-        db.session.commit()
-
-        flash(f'Wrestler {wrestler.name} has been updated.', 'success')
-        # Ensure the redirect includes season_id
+        # Redirect back to the wrestler detail page
         return redirect(url_for('wrestler_detail', wrestler_id=wrestler.id, season_id=season_id))
 
     return render_template('edit_wrestler.html', wrestler=wrestler, weight_classes=WEIGHT_CLASSES, schools=D3_WRESTLING_SCHOOLS, season_id=season_id)
@@ -2682,7 +2705,7 @@ def global_leaderboards():
     # Get the selected weight class from the request
     selected_weight_class = request.args.get('weight_class')
 
-    # Fetch top wrestlers for each win type and the selected season
+    # Fetch top wrestlers for each win type and the selected season using updated stat tracking
     fall_leaders = get_stat_leaders('Fall', season_id=current_season.id, weight_class=selected_weight_class, limit=20)
     tech_fall_leaders = get_stat_leaders('Technical Fall', season_id=current_season.id, weight_class=selected_weight_class, limit=20)
     major_decision_leaders = get_stat_leaders('Major Decision', season_id=current_season.id, weight_class=selected_weight_class, limit=20)
@@ -2699,16 +2722,19 @@ def global_leaderboards():
     # Pass weight classes to the template
     weight_classes = WEIGHT_CLASSES  # Assuming this is defined in your app
 
-    return render_template('global_leaderboards.html',
-                           fall_leaders=fall_leaders,
-                           tech_fall_leaders=tech_fall_leaders,
-                           major_decision_leaders=major_decision_leaders,
-                           most_dominant_wrestlers=most_dominant_wrestlers,
-                           current_season_name=current_season_name,
-                           seasons=seasons,
-                           selected_season_id=current_season.id,
-                           selected_weight_class=selected_weight_class,
-                           weight_classes=weight_classes)  # Pass weight classes to the template
+    # Render the global leaderboard template with all data
+    return render_template(
+        'global_leaderboards.html',
+        fall_leaders=fall_leaders,
+        tech_fall_leaders=tech_fall_leaders,
+        major_decision_leaders=major_decision_leaders,
+        most_dominant_wrestlers=most_dominant_wrestlers,
+        current_season_name=current_season_name,
+        seasons=seasons,
+        selected_season_id=current_season.id,
+        selected_weight_class=selected_weight_class,
+        weight_classes=weight_classes
+    )
 
 
 

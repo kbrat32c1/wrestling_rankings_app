@@ -62,7 +62,9 @@
 
     <div class="form-group" id="match_time_group" style="display: none;">
         <label for="match_time">Match Time (Only for Falls/Technical Falls):</label>
-        <input type="time" step="1" class="form-control" id="match_time" name="match_time" value="{{ match.match_time }}">
+        <input type="text" class="form-control" id="match_time" name="match_time" pattern="^([0-5]?[0-9]):([0-5][0-9])$" placeholder="MM:SS"
+            value="{% if match.match_time %}{{ match.match_time.strftime('%M:%S') }}{% endif %}">
+        <small class="form-text text-muted">Enter match time in MM:SS format.</small>
     </div>
 
     <button type="submit" class="btn btn-primary">Update Match</button>

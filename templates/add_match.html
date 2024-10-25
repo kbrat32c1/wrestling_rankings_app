@@ -69,8 +69,8 @@
     </div>
 
     <div class="form-group">
-        <label for="match_time">Match Time (Only for Falls/Technical Falls):</label>
-        <input type="time" step="1" class="form-control" id="match_time" name="match_time" disabled>
+        <label for="match_time">Match Time (Only for Falls/Technical Falls - MM:SS):</label>
+        <input type="text" class="form-control" id="match_time" name="match_time" placeholder="MM:SS" disabled>
     </div>
 
     <button type="submit" class="btn btn-primary">Add Match</button>
@@ -110,10 +110,15 @@
         const matchTimeInput = document.getElementById('match_time');
         if (winType === 'Fall' || winType === 'Technical Fall') {
             matchTimeInput.disabled = false;
+            matchTimeInput.required = true;
         } else {
             matchTimeInput.disabled = true;
+            matchTimeInput.required = false;
             matchTimeInput.value = ''; // Clear the value if it's disabled
         }
     }
+
+    // Pre-check if the match type already selected needs the time input
+    toggleMatchTime();
 </script>
 {% endblock %}
