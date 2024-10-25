@@ -18,15 +18,18 @@ from flask_login import LoginManager
 
 app = Flask(__name__)
 
-# Production Database URL (Use the Render PostgreSQL connection string)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://ncaa_division_3_wrestlers_user:DEcBFNQcIrsqJCqYGVV0Cm74k35ZtKDY@dpg-cs8iq108fa8c73bul5g0-a.ohio-postgres.render.com/ncaa_division_3_wrestlers'
+
+# Use the DATABASE_URL environment variable or fallback to SQLite for local testing
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///instance/wrestling.db')
+
 
 
 
 # Other configurations
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-app.config['SECRET_KEY'] = 'your_secret_key_here'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a53b32f4238ac0b42700093518c19674a620544082a56ba9')
+
 
 # Initialize the database
 db = SQLAlchemy(app)
