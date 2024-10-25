@@ -304,7 +304,7 @@ SCHOOL_ALIASES = {
     "Wartburg College": ["Wartburg"],
     "Westminster": ["Westminster"],
     "Augsburg University": ["Augsburg"],
-    "Augustana College": ["Augustana"],
+    "Augustana College": ["Augustana", "Augustana (IL)"],
     "Carthage College": ["Carthage"],
     "Concordia College - Moorhead": ["Concordia Moorhead", "Concordia"],
     "Concordia University Wisconsin": ["Concordia Wisconsin", "CUW"],
