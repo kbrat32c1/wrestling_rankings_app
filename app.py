@@ -14,22 +14,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import event
 import json
 import os
-from flask_login import LoginManager
+from config import Config
 
 app = Flask(__name__)
-
-
-# Use the DATABASE_URL environment variable or fallback to SQLite for local testing
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///instance/wrestling.db')
-
-
-
-
-# Other configurations
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a53b32f4238ac0b42700093518c19674a620544082a56ba9')
-
+app.config.from_object(Config)
 
 # Initialize the database
 db = SQLAlchemy(app)
