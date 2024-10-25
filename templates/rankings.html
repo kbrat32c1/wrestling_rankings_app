@@ -69,24 +69,16 @@
                     <th>Losses</th>
                     <th>Win %</th>
                     <th>
-                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='elo', season_id=selected_season_id) }}" data-toggle="tooltip" title="Elo Rating: A measure of a wrestler's skill based on match outcomes. Higher is better.">
-                            Elo Rating
-                        </a>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='elo', season_id=selected_season_id) }}">Elo Rating</a>
                     </th>
                     <th>
-                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='rpi', season_id=selected_season_id) }}" data-toggle="tooltip" title="RPI: A ranking index based on win percentage, strength of schedule, and opponent's strength of schedule.">
-                            RPI
-                        </a>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='rpi', season_id=selected_season_id) }}">RPI</a>
                     </th>
                     <th>
-                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='hybrid', season_id=selected_season_id) }}" data-toggle="tooltip" title="Hybrid Score: A combined measure of Elo and RPI to provide a balanced ranking.">
-                            Hybrid Score
-                        </a>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='hybrid', season_id=selected_season_id) }}">Hybrid Score</a>
                     </th>
                     <th>
-                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='dominance', season_id=selected_season_id) }}" data-toggle="tooltip" title="Dominance Score: A measure of how dominant a wrestler is in matches, factoring in match outcomes and scores.">
-                            Dominance Score
-                        </a>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='dominance', season_id=selected_season_id) }}">Dominance Score</a>
                     </th>
                 </tr>
             </thead>
@@ -131,16 +123,3 @@
     <p>No wrestlers found for this weight class.</p>
 {% endif %}
 {% endblock %}
-
-<!-- Custom CSS for larger tooltips -->
-<style>
-    .tooltip-inner {
-        font-size: 1.1em; /* Increase tooltip font size */
-    }
-</style>
-
-<script>
-    $(document).ready(function(){
-        $('[data-toggle="tooltip"]').tooltip();
-    });
-</script>
