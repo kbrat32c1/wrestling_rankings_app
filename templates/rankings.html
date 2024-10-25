@@ -69,16 +69,24 @@
                     <th>Losses</th>
                     <th>Win %</th>
                     <th>
-                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='elo', season_id=selected_season_id) }}">Elo Rating</a>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='elo', season_id=selected_season_id) }}" data-toggle="tooltip" data-placement="top" title="Elo is a rating system used to rank wrestlers based on match results.">
+                            Elo Rating
+                        </a>
                     </th>
                     <th>
-                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='rpi', season_id=selected_season_id) }}">RPI</a>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='rpi', season_id=selected_season_id) }}" data-toggle="tooltip" data-placement="top" title="RPI considers strength of schedule and opponent performance.">
+                            RPI
+                        </a>
                     </th>
                     <th>
-                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='hybrid', season_id=selected_season_id) }}">Hybrid Score</a>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='hybrid', season_id=selected_season_id) }}" data-toggle="tooltip" data-placement="top" title="Hybrid Score is a combination of Elo and RPI to balance ranking factors.">
+                            Hybrid Score
+                        </a>
                     </th>
                     <th>
-                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='dominance', season_id=selected_season_id) }}">Dominance Score</a>
+                        <a href="{{ url_for('rankings', weight_class=weight_class, sort_by='dominance', season_id=selected_season_id) }}" data-toggle="tooltip" data-placement="top" title="Dominance Score measures the margin of victory in matches.">
+                            Dominance Score
+                        </a>
                     </th>
                 </tr>
             </thead>
@@ -123,3 +131,9 @@
     <p>No wrestlers found for this weight class.</p>
 {% endif %}
 {% endblock %}
+
+<script>
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+</script>
