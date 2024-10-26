@@ -40,7 +40,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.ERROR)
 logger = app.logger
 
 WEIGHT_CLASSES = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285]
