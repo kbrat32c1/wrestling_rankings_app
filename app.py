@@ -3125,4 +3125,7 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     print(f"Database created at: {app.config['SQLALCHEMY_DATABASE_URI']}")
-    app.run(debug=True)
+
+    # Run the app, with debug mode set based on the FLASK_ENV environment variable
+    app.run(debug=os.getenv("FLASK_ENV") == "development")
+
