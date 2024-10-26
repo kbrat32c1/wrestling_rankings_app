@@ -10,8 +10,8 @@ class Config:
     # Disable FS overhead for SQLAlchemy
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Use the SECRET_KEY environment variable or a default (make sure to set it securely)
-    SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key_here')
+    # Use the SECRET_KEY environment variable
+    SECRET_KEY = os.getenv('SECRET_KEY')  # Ensure this is set on your production environment
     
     # Other useful configurations
     SEND_FILE_MAX_AGE_DEFAULT = 0
