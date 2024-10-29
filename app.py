@@ -14,18 +14,12 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import event
 import json
 import os
-from flask_login import LoginManager
+
+# Import the Config class from config.py
+from config import Config
 
 app = Flask(__name__)
-
-# Use the DATABASE_URL environment variable or fallback to SQLite for local testing
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///instance/wrestling.db')
-
-# Other configurations
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-
+app.config.from_object(Config)  # Load configurations from Config
 
 # Initialize the database
 db = SQLAlchemy(app)
@@ -233,7 +227,7 @@ SCHOOL_ALIASES = {
     "Elizabethtown College": ["Elizabethtown", "E-town"],
     "Gettysburg College": ["Gettysburg"],
     "Johns Hopkins University": ["Johns Hopkins", "Hopkins", "JHU"],
-    "King's College": ["King's", "King`s (PA)"],
+    "King's College": ["King's", "King`s (PA)", "King's (PA)"],
     "Marymount University": ["Marymount"],
     "McDaniel College": ["McDaniel"],
     "Messiah University": ["Messiah"],
@@ -271,7 +265,7 @@ SCHOOL_ALIASES = {
     "Alma College": ["Alma"],
     "Aurora University": ["Aurora"],
     "Case Western Reserve University": ["Case Western", "CWRU", "Case Western Reserve"],
-    "Elmhurst College": ["Elmhurst"],
+    "Elmhurst College": ["Elmhurst", "Elmhurst University"],
     "John Carroll University": ["John Carroll", "JCU"],
     "Manchester University": ["Manchester"],
     "Millikin University": ["Millikin"],
@@ -303,10 +297,10 @@ SCHOOL_ALIASES = {
     "Wartburg College": ["Wartburg"],
     "Westminster": ["Westminster"],
     "Augsburg University": ["Augsburg"],
-    "Augustana College": ["Augustana"],
+    "Augustana College": ["Augustana", "Augustana (IL)"],
     "Carthage College": ["Carthage"],
-    "Concordia College - Moorhead": ["Concordia Moorhead", "Concordia"],
-    "Concordia University Wisconsin": ["Concordia Wisconsin", "CUW"],
+    "Concordia College - Moorhead": ["Concordia Moorhead", "Concordia", "Concordia-Moorhead"],
+    "Concordia University Wisconsin": ["Concordia Wisconsin", "CUW", "Concordia (WI)"],
     "Lakeland University": ["Lakeland"],
     "Linfield University": ["Linfield"],
     "Milwaukee School of Engineering": ["MSOE", "Milwaukee Engineering"],
