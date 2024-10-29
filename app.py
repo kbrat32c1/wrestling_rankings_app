@@ -1037,9 +1037,9 @@ def calculate_points(rank):
     elif rank == 6:
         return 6
     elif rank == 7:
-        return 2
+        return 4
     elif rank == 8:
-        return 1
+        return 3
     else:
         return 0
 
