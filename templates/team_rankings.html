@@ -6,26 +6,51 @@
 <div class="container mt-4">
     <h1 class="text-center mb-5">Team Rankings for Season {{ selected_season_name }}</h1>
 
-    <!-- Custom CSS to fix dropdown arrow overlap -->
+    <!-- Custom CSS for Dropdown Arrow Alignment -->
     <style>
-        /* Ensure dropdowns have proper padding and alignment */
         .custom-select {
-            padding-right: 30px; /* Ensure enough space for dropdown arrow */
-            text-align-last: left; /* Align text properly */
-            -webkit-appearance: none; /* Remove default styling on WebKit browsers */
-            -moz-appearance: none; /* Remove default styling on Mozilla browsers */
-            appearance: none; /* Remove default styling on all browsers */
-            background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 20 20"><polygon fill="%23343a40" points="0,0 20,0 10,10"/></svg>');
+            padding-right: 30px; /* Add padding for the arrow */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3E%3Cpath fill='%23343a40' d='M2 0L0 2h4z'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 10px center; /* Position arrow correctly */
-            background-size: 12px; /* Adjust size of arrow */
-            min-width: 160px; /* Ensure consistent dropdown width */
+            background-position: right 10px center;
+            background-size: 12px;
+            min-width: 160px;
+        }
+
+        /* Accordion styling */
+        .accordion-section {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 5px;
+            padding: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: #f8f9fa;
+        }
+
+        .accordion-section .team-header {
+            font-weight: bold;
+            cursor: pointer;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+
+        .accordion-section .inner-table-wrapper {
+            padding: 10px;
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        /* Full width for inner collapsible table */
+        .inner-table-wrapper .table {
+            width: 100%;
+            margin: 0;
         }
     </style>
 
     <!-- Form for selecting the season and region -->
     <form action="{{ url_for('team_rankings') }}" method="GET" class="form-inline mb-4 justify-content-center">
-        <!-- Season Selection Dropdown -->
         <div class="form-group mr-2">
             <label for="seasonSelect" class="mr-2 font-weight-bold">Select Season:</label>
             <select id="seasonSelect" name="season_id" class="form-control custom-select" onchange="this.form.submit()">
@@ -37,7 +62,6 @@
             </select>
         </div>
 
-        <!-- Region Selection Dropdown -->
         <div class="form-group mr-2">
             <label for="regionSelect" class="mr-2 font-weight-bold">Select Region:</label>
             <select id="regionSelect" name="region" class="form-control custom-select" onchange="this.form.submit()">
@@ -51,26 +75,81 @@
         </div>
     </form>
 
-    <!-- Display team rankings -->
+    <!-- Display team rankings with collapsible sections for each team's wrestlers -->
     <div class="table-responsive">
-        <table class="table table-striped table-hover">
+        <table class="table table-striped table-hover" style="table-layout: fixed; width: 100%;">
             <thead class="thead-dark">
                 <tr>
-                    <th>Rank</th>
-                    <th>Team</th>
-                    <th>Points</th>
+                    <th style="width: 10%;">Rank</th>
+                    <th style="width: 70%;">Team</th>
+                    <th style="width: 20%;">Points</th>
                 </tr>
             </thead>
             <tbody>
-                {% for team_name, points in team_scores %}
+                {% for team_name, data in team_scores %}
                 <tr>
-                    <td>{{ loop.index }}</td> <!-- Use loop.index for the rank -->
-                    <td>{{ team_name }}</td>
-                    <td>{{ points }}</td>
+                    <td>{{ loop.index }}</td> <!-- Rank based on loop index -->
+                    <td>
+                        <div class="accordion-section">
+                            <div class="team-header" data-toggle="collapse" data-target="#team-{{ loop.index }}" aria-expanded="false" aria-controls="team-{{ loop.index }}">
+                                {{ team_name }}
+                            </div>
+
+                            <!-- Collapsible section for ranked wrestlers on each team -->
+                            <div id="team-{{ loop.index }}" class="collapse">
+                                <div class="inner-table-wrapper">
+                                    <table class="table table-bordered table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Wrestler</th>
+                                                <th>Weight Class</th>
+                                                <th>Ranking</th>
+                                                <th>Points</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for wrestler in data['ranked_wrestlers'] %}
+                                            <tr>
+                                                <td>
+                                                    <!-- Link to wrestler's detail page -->
+                                                    <a href="{{ url_for('wrestler_detail', wrestler_id=wrestler.id, season_id=selected_season_id) }}">
+                                                        {{ wrestler.name }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ wrestler.weight_class }}</td>
+                                                <td>{{ wrestler.ranking }}</td>
+                                                <td>{{ wrestler.points }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ data['total_points'] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+<!-- Additional JavaScript for accordion behavior -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Adjust width on collapse and expand
+        document.querySelectorAll('.team-header').forEach(button => {
+            button.addEventListener('click', function(event) {
+                const targetId = button.getAttribute('data-target');
+                const targetElement = document.querySelector(targetId);
+
+                targetElement.addEventListener('shown.bs.collapse', function() {
+                    targetElement.style.width = document.querySelector('.table-responsive').clientWidth + 'px';
+                });
+            });
+        });
+    });
+</script>
+
 {% endblock %}
