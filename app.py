@@ -2156,14 +2156,16 @@ def validate_and_process_csv(file, user_id=None):
                     continue
 
                 # Duplicate check to prevent multiple entries of the same match
-                if Match.query.filter(
+                duplicate_match = Match.query.filter(
                     Match.date == match_date,
-                    Match.wrestler1 == wrestler1_name,
-                    Match.wrestler2 == wrestler2_name,
+                    Match.wrestler1.has(name=wrestler1_name) if isinstance(Match.wrestler1, db.RelationshipProperty) else Match.wrestler1 == wrestler1_name,
+                    Match.wrestler2.has(name=wrestler2_name) if isinstance(Match.wrestler2, db.RelationshipProperty) else Match.wrestler2 == wrestler2_name,
                     Match.weight_class == weight_class,
                     Match.wrestler1_score == wrestler1_score,
                     Match.wrestler2_score == wrestler2_score
-                ).first():
+                ).first()
+                
+                if duplicate_match:
                     skipped_duplicates += 1
                     detailed_feedback.append(f"Row {row_num}: Duplicate match skipped.")
                     continue
