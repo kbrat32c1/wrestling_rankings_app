@@ -2062,25 +2062,16 @@ def validate_and_process_csv(file, user_id=None):
         detailed_feedback = []
         added_matches = 0
         skipped_duplicates = 0
-        match_ids = []
 
-        # Validate schools before processing rows
-        known_schools = set(D3_WRESTLING_SCHOOLS)  # Assuming this is your list of main school names
-        known_schools.update(SCHOOL_ALIASES.keys())  # Add alias names
-
-        # First pass: validate all rows without committing
+        # First pass: validate school names without committing
         for row_num, row in enumerate(csv_reader, start=1):
-            # Extract school names and strip whitespace
-            school1_name = row['School1'].strip()
-            school2_name = row['School2'].strip()
-
-            # Check if both schools are in the known schools list
-            if school1_name not in known_schools:
-                detailed_feedback.append(f"Row {row_num}: School '{school1_name}' does not match any known school or alias.")
+            # Normalize and validate school names
+            school1_name = normalize_school_name(row['School1'].strip())
+            school2_name = normalize_school_name(row['School2'].strip())
+            if school1_name not in D3_WRESTLING_SCHOOLS or school2_name not in D3_WRESTLING_SCHOOLS:
+                detailed_feedback.append(f"Row {row_num}: Unknown school '{school1_name}' or '{school2_name}'.")
                 row_errors += 1
-            if school2_name not in known_schools:
-                detailed_feedback.append(f"Row {row_num}: School '{school2_name}' does not match any known school or alias.")
-                row_errors += 1
+                continue  # Skip invalid rows
 
         # Stop processing if there are school mismatches
         if row_errors > 0:
@@ -2095,11 +2086,11 @@ def validate_and_process_csv(file, user_id=None):
         # Second pass: process rows now that all fields are validated
         for row_num, row in enumerate(csv_reader, start=1):
             try:
-                # Your existing field processing and match creation code
+                # Field processing and match creation
                 wrestler1_name = row['Wrestler1'].strip()
-                school1_name = row['School1'].strip()
+                school1_name = normalize_school_name(row['School1'].strip())
                 wrestler2_name = row['Wrestler2'].strip()
-                school2_name = row['School2'].strip()
+                school2_name = normalize_school_name(row['School2'].strip())
                 weight_class = int(row['WeightClass'].strip())
                 wrestler1_score = int(row['Wrestler1_Score'].strip())
                 wrestler2_score = int(row['Wrestler2_Score'].strip())
@@ -2156,7 +2147,6 @@ def validate_and_process_csv(file, user_id=None):
 
                 if win_type in win_type_mapping:
                     win_flags[win_type_mapping[win_type]] = True
-
                     if win_flags["fall"] or win_flags["technical_fall"]:
                         try:
                             match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
@@ -2170,10 +2160,34 @@ def validate_and_process_csv(file, user_id=None):
                     row_errors += 1
                     continue
 
-                # Other field validations and duplicate checks as per your existing function...
+                # Duplicate check to prevent multiple entries of the same match
+                if Match.query.filter(
+                    Match.date == match_date,
+                    Match.wrestler1 == wrestler1_name,
+                    Match.wrestler2 == wrestler2_name,
+                    Match.weight_class == weight_class,
+                    Match.wrestler1_score == wrestler1_score,
+                    Match.wrestler2_score == wrestler2_score).first():
+                    skipped_duplicates += 1
+                    detailed_feedback.append(f"Row {row_num}: Duplicate match skipped.")
+                    continue
 
-                # Commit match if all checks pass
-                db.session.commit()
+                # Add the match to the session if all validations pass
+                new_match = Match(
+                    date=match_date,
+                    wrestler1=wrestler1_name,
+                    school1=school1_name,
+                    wrestler2=wrestler2_name,
+                    school2=school2_name,
+                    weight_class=weight_class,
+                    wrestler1_score=wrestler1_score,
+                    wrestler2_score=wrestler2_score,
+                    winner=winner_name,
+                    match_time=match_time,
+                    season_id=season_id,
+                    **win_flags
+                )
+                db.session.add(new_match)
                 added_matches += 1
                 detailed_feedback.append(f"Row {row_num}: Match added successfully.")
 
@@ -2183,18 +2197,11 @@ def validate_and_process_csv(file, user_id=None):
                 db.session.rollback()
                 continue
 
-        # Save report if no errors
-        if row_errors == 0:
-            upload_report = CSVUploadReport(
-                user_id=user_id,
-                total_matches=added_matches,
-                added_matches=added_matches,
-                detailed_feedback=json.dumps(detailed_feedback)
-            )
-            db.session.add(upload_report)
-            db.session.commit()
+        # Commit all valid matches at once for efficiency
+        db.session.commit()
 
-        flash(f"CSV processed: {added_matches} matches added.", 'success')
+        # Summary feedback
+        flash(f"CSV processed: {added_matches} matches added, {skipped_duplicates} duplicates skipped, {row_errors} errors.", 'success')
         session['csv_feedback'] = detailed_feedback
         return True
 
