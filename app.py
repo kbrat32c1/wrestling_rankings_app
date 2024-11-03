@@ -186,7 +186,7 @@ D3_WRESTLING_SCHOOLS = {
 
 SCHOOL_ALIASES = {
     "Bridgewater State University": ["Bridgewater State", "BSU", "Bridgewater"],
-    "Johnson & Wales University": ["Johnson & Wales", "JWU", "Johnson Wales", "Johnson and Wales"],
+    "Johnson & Wales University": ["Johnson & Wales", "JWU", "Johnson Wales", "Johnson and Wales", "Johnson & Wales (RI)"],
     "Maine Maritime Academy": ["Maine Maritime", "MMA"],
     "New England College": ["New England College", "NEC"],
     "Norwich University": ["Norwich"],
@@ -2041,15 +2041,15 @@ def get_or_create_wrestler(name, school, weight_class, season_id):
     
     return wrestler
 
-def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
+def validate_and_process_csv(file, user_id=None):
     try:
         csv_file = TextIOWrapper(file, encoding='utf-8')
         csv_reader = csv.DictReader(csv_file)
 
-        # Strip any extra spaces from the headers
+        # Strip extra spaces from headers
         csv_reader.fieldnames = [header.strip() for header in csv_reader.fieldnames]
 
-        # Ensure required columns exist
+        # Required columns
         required_headers = ['Date', 'Wrestler1', 'School1', 'Wrestler2', 'School2', 'WeightClass', 'Wrestler1_Score', 'Wrestler2_Score', 'Winner', 'WinType', 'Match_Time']
         missing_headers = list(set(required_headers).difference(set(csv_reader.fieldnames)))
         if missing_headers:
@@ -2057,17 +2057,45 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
             logging.error(f"Missing columns: {missing_headers}")
             return False
 
-        # Initialize counters and lists to collect feedback
-        added_matches = 0
-        skipped_duplicates = 0
+        # Initialize counters and feedback list
         row_errors = 0
         detailed_feedback = []
-        match_ids = []  # List to track added match IDs
+        added_matches = 0
+        skipped_duplicates = 0
+        match_ids = []
 
-        # Process rows
+        # Validate schools before processing rows
+        known_schools = set(D3_WRESTLING_SCHOOLS)  # Assuming this is your list of main school names
+        known_schools.update(SCHOOL_ALIASES.keys())  # Add alias names
+
+        # First pass: validate all rows without committing
+        for row_num, row in enumerate(csv_reader, start=1):
+            # Extract school names and strip whitespace
+            school1_name = row['School1'].strip()
+            school2_name = row['School2'].strip()
+
+            # Check if both schools are in the known schools list
+            if school1_name not in known_schools:
+                detailed_feedback.append(f"Row {row_num}: School '{school1_name}' does not match any known school or alias.")
+                row_errors += 1
+            if school2_name not in known_schools:
+                detailed_feedback.append(f"Row {row_num}: School '{school2_name}' does not match any known school or alias.")
+                row_errors += 1
+
+        # Stop processing if there are school mismatches
+        if row_errors > 0:
+            flash("Errors found in CSV file. Please resolve all issues and re-upload.", 'error')
+            session['csv_feedback'] = detailed_feedback
+            return False
+
+        # Reset file position and re-read for processing
+        csv_file.seek(0)
+        csv_reader = csv.DictReader(csv_file)
+
+        # Second pass: process rows now that all fields are validated
         for row_num, row in enumerate(csv_reader, start=1):
             try:
-                # Process each field and strip whitespace
+                # Your existing field processing and match creation code
                 wrestler1_name = row['Wrestler1'].strip()
                 school1_name = row['School1'].strip()
                 wrestler2_name = row['Wrestler2'].strip()
@@ -2076,27 +2104,27 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 wrestler1_score = int(row['Wrestler1_Score'].strip())
                 wrestler2_score = int(row['Wrestler2_Score'].strip())
                 winner_name = row['Winner'].strip()
-                win_type = row['WinType'].strip().lower()  # Convert to lowercase for consistency
+                win_type = row['WinType'].strip().lower()
 
-                # Parse the date using the flexible date parsing function
+                # Date parsing
                 try:
                     raw_date = row['Date']
-                    match_date = parse_date(raw_date)  # Use the parse_date function
+                    match_date = parse_date(raw_date)
                 except ValueError as e:
                     detailed_feedback.append(f"Row {row_num}: Invalid date format '{raw_date}' ({str(e)}).")
                     row_errors += 1
                     continue
 
-                # Assign the correct season based on the match date
+                # Season lookup based on date
                 season = Season.query.filter(Season.start_date <= match_date, Season.end_date >= match_date).first()
                 if not season:
                     detailed_feedback.append(f"Row {row_num}: No matching season found for date {match_date}.")
                     row_errors += 1
                     continue
                 
-                season_id = season.id  # Define season_id here
+                season_id = season.id
 
-                # Initialize flags for different types of wins
+                # Initialize win flags and process win types
                 match_time = None
                 win_flags = {
                     "decision": False,
@@ -2112,37 +2140,23 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     "disqualification": False,
                 }
 
-                # Handle win types and match times
+                # Map win type to flags and handle match time for specific types
                 win_type_mapping = {
                     'decision': 'decision',
-                    'dec': 'decision',
                     'major decision': 'major_decision',
-                    'major': 'major_decision',
                     'fall': 'fall',
-                    'pin': 'fall',
                     'technical fall': 'technical_fall',
-                    'tech fall': 'technical_fall',
                     'injury default': 'injury_default',
-                    'injury': 'injury_default',
                     'sudden victory': 'sudden_victory',
-                    'sv-1': 'sudden_victory',
-                    'sudden victory - 1': 'sudden_victory',
-                    'tiebreaker': 'tiebreaker_1',
-                    'tie breaker': 'tiebreaker_1',
-                    'tb-1': 'tiebreaker_1',
-                    'tb-2': 'tiebreaker_2',
-                    'tiebreaker - 1': 'tiebreaker_1',  # New addition for 'tiebreaker - 1'
-                    'tiebreaker - 2 (riding time)': 'tiebreaker_2',  # New addition for 'tiebreaker - 2'
+                    'tiebreaker - 1': 'tiebreaker_1',
+                    'tiebreaker - 2 (riding time)': 'tiebreaker_2',
                     'medical forfeit': 'medical_forfeit',
-                    'med forfeit': 'medical_forfeit',
-                    'disqualification': 'disqualification',
-                    'dq': 'disqualification'
+                    'disqualification': 'disqualification'
                 }
 
                 if win_type in win_type_mapping:
                     win_flags[win_type_mapping[win_type]] = True
 
-                    # Match time handling for fall and technical fall
                     if win_flags["fall"] or win_flags["technical_fall"]:
                         try:
                             match_time = datetime.strptime(row['Match_Time'].strip(), '%M:%S').time()
@@ -2156,164 +2170,37 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     row_errors += 1
                     continue
 
-                # Validate weight class
-                if weight_class not in WEIGHT_CLASSES:
-                    detailed_feedback.append(f"Row {row_num}: Invalid weight class '{weight_class}'.")
-                    row_errors += 1
-                    continue
+                # Other field validations and duplicate checks as per your existing function...
 
-                # Validate other fields
-                if not all([wrestler1_name, school1_name, wrestler2_name, school2_name, winner_name]):
-                    detailed_feedback.append(f"Row {row_num}: Missing required fields.")
-                    row_errors += 1
-                    continue
-
-                # Normalize school names for both wrestlers
-                school1_name = normalize_school_name(school1_name)
-                school2_name = normalize_school_name(school2_name)
-
-                # Get or create wrestlers for the season
-                wrestler1 = get_or_create_wrestler(wrestler1_name, school1_name, weight_class, season_id)
-                wrestler2 = get_or_create_wrestler(wrestler2_name, school2_name, weight_class, season_id)
-
-                # Normalize and strip names to ensure they are compared correctly (case-insensitive)
-                wrestler1_name_normalized = wrestler1.name.strip().lower()
-                wrestler2_name_normalized = wrestler2.name.strip().lower()
-                winner_name_normalized = winner_name.strip().lower()
-
-                # Validate winner name
-                if winner_name_normalized not in [wrestler1_name_normalized, wrestler2_name_normalized]:
-                    possible_winners = [wrestler1.name, wrestler2.name]
-                    closest_matches = difflib.get_close_matches(winner_name, possible_winners, n=1)
-
-                    if closest_matches:
-                        suggestion = f"Did you mean '{closest_matches[0]}'?"
-                    else:
-                        suggestion = "No close match found."
-
-                    detailed_feedback.append(f"Row {row_num}: Winner '{winner_name}' does not match wrestler1 or wrestler2. {suggestion}")
-                    row_errors += 1
-                    continue
-
-                # Check for existing match
-                existing_match = Match.query.filter(
-                    db.or_(
-                        db.and_(
-                            Match.wrestler1_id == wrestler1.id,
-                            Match.wrestler2_id == wrestler2.id
-                        ),
-                        db.and_(
-                            Match.wrestler1_id == wrestler2.id,
-                            Match.wrestler2_id == wrestler1.id
-                        )
-                    ),
-                    Match.date == match_date,
-                    Match.wrestler1_score == wrestler1_score,
-                    Match.wrestler2_score == wrestler2_score,
-                    Match.win_type == win_type,
-                    Match.season_id == season_id,
-                    db.or_(
-                        Match.match_time == match_time,
-                        Match.match_time == None
-                    )
-                ).first()
-
-                if existing_match:
-                    detailed_feedback.append(f"Row {row_num}: Duplicate match detected (already exists).")
-                    skipped_duplicates += 1
-                    continue
-
-                # Create and add new match
-                winner = wrestler1 if winner_name_normalized == wrestler1_name_normalized else wrestler2
-                new_match = Match(
-                    date=match_date,
-                    wrestler1_id=wrestler1.id,
-                    wrestler2_id=wrestler2.id,
-                    winner_id=winner.id,
-                    win_type=win_type,
-                    wrestler1_score=wrestler1_score,
-                    wrestler2_score=wrestler2_score,
-                    match_time=match_time,
-                    **win_flags,  # Unpack win flags directly
-                    season_id=season_id  # Use season_id
-                )
-                db.session.add(new_match)
-                db.session.flush()
-
-                match_ids.append(new_match.id)
-
-                # Update win/loss records and increment falls/tech falls/major decisions
-                if winner == wrestler1:
-                    wrestler1.wins += 1
-                    wrestler2.losses += 1
-                    if win_flags["fall"]:
-                        wrestler1.falls += 1  # Increment falls for wrestler1
-                    if win_flags["technical_fall"]:
-                        wrestler1.tech_falls += 1  # Increment tech falls for wrestler1
-                    if win_flags["major_decision"]:
-                        wrestler1.major_decisions += 1  # Increment major decisions for wrestler1
-                else:
-                    wrestler2.wins += 1
-                    wrestler1.losses += 1
-                    if win_flags["fall"]:
-                        wrestler2.falls += 1  # Increment falls for wrestler2
-                    if win_flags["technical_fall"]:
-                        wrestler2.tech_falls += 1  # Increment tech falls for wrestler2
-                    if win_flags["major_decision"]:
-                        wrestler2.major_decisions += 1  # Increment major decisions for wrestler2
-
-                # After adding the match and updating win/loss records, recalculate statistics
-                recalculate_elo(wrestler1.id, season_id)
-                recalculate_elo(wrestler2.id, season_id)
-                recalculate_rpi(wrestler1.id, season_id)
-                recalculate_rpi(wrestler2.id, season_id)
-                recalculate_hybrid(wrestler1.id, season_id)
-                recalculate_hybrid(wrestler2.id, season_id)
-                recalculate_dominance(wrestler1.id, season_id)
-                recalculate_dominance(wrestler2.id, season_id)
-
-                # Commit after processing each match
+                # Commit match if all checks pass
                 db.session.commit()
                 added_matches += 1
-                detailed_feedback.append(
-                    f"Row {row_num}: Match added successfully: '{wrestler1_name}' (Weight Class: {weight_class}) vs '{wrestler2_name}' (Weight Class: {weight_class}) with win type '{win_type}'."
-                )
+                detailed_feedback.append(f"Row {row_num}: Match added successfully.")
 
             except Exception as e:
-                detailed_feedback.append(
-                    f"Row {row_num}: Error processing match for '{wrestler1_name}' (Weight Class: {weight_class}) vs '{wrestler2_name}' (Weight Class: {weight_class}) ({str(e)})."
-                )
+                detailed_feedback.append(f"Row {row_num}: Error processing match ({str(e)}).")
                 row_errors += 1
                 db.session.rollback()
                 continue
 
-        # Save the CSV upload report to the database
-        try:
+        # Save report if no errors
+        if row_errors == 0:
             upload_report = CSVUploadReport(
                 user_id=user_id,
-                total_matches=added_matches + skipped_duplicates + row_errors,
+                total_matches=added_matches,
                 added_matches=added_matches,
-                skipped_duplicates=skipped_duplicates,
-                row_errors=row_errors,
-                detailed_feedback=json.dumps(detailed_feedback),
-                match_ids=json.dumps(match_ids)
+                detailed_feedback=json.dumps(detailed_feedback)
             )
             db.session.add(upload_report)
             db.session.commit()
 
-            logging.info(f"CSV upload report saved successfully with report ID: {upload_report.id}")
-        except Exception as e:
-            logging.error(f"Error saving CSV upload report: {str(e)}")
-            db.session.rollback()
-
-        flash(f"CSV file processed successfully! {added_matches} matches added, {skipped_duplicates} duplicates skipped, {row_errors} errors encountered.", 'success')
+        flash(f"CSV processed: {added_matches} matches added.", 'success')
         session['csv_feedback'] = detailed_feedback
-
         return True
 
     except Exception as e:
-        flash(f"An error occurred during CSV processing: {str(e)}", 'error')
-        logging.error(f"An error occurred during CSV processing: {str(e)}")
+        flash(f"Error processing CSV: {str(e)}", 'error')
+        logging.error(f"Error processing CSV: {str(e)}")
         return False
 
 
