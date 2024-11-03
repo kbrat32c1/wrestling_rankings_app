@@ -2062,16 +2062,27 @@ def validate_and_process_csv(file, user_id=None):
         detailed_feedback = []
         added_matches = 0
         skipped_duplicates = 0
+        skipped_non_d3 = 0  # Counter for matches skipped due to non-D3 schools
 
         # First pass: validate school names without committing
         for row_num, row in enumerate(csv_reader, start=1):
             # Normalize and validate school names
             school1_name = normalize_school_name(row['School1'].strip())
             school2_name = normalize_school_name(row['School2'].strip())
+
+            # Skip match if any school is not in D3
             if school1_name not in D3_WRESTLING_SCHOOLS or school2_name not in D3_WRESTLING_SCHOOLS:
-                detailed_feedback.append(f"Row {row_num}: Unknown school '{school1_name}' or '{school2_name}'.")
+                detailed_feedback.append(f"Row {row_num}: Match skipped due to non-D3 school '{school1_name}' or '{school2_name}'.")
+                skipped_non_d3 += 1
+                continue  # Skip this row
+
+            # Check for missing columns or other errors
+            wrestler1_name = row['Wrestler1'].strip()
+            wrestler2_name = row['Wrestler2'].strip()
+            if not wrestler1_name or not wrestler2_name:
+                detailed_feedback.append(f"Row {row_num}: Missing wrestler name.")
                 row_errors += 1
-                continue  # Skip invalid rows
+                continue  # Skip this row
 
         # Stop processing if there are school mismatches
         if row_errors > 0:
@@ -2201,7 +2212,7 @@ def validate_and_process_csv(file, user_id=None):
         db.session.commit()
 
         # Summary feedback
-        flash(f"CSV processed: {added_matches} matches added, {skipped_duplicates} duplicates skipped, {row_errors} errors.", 'success')
+        flash(f"CSV processed: {added_matches} matches added, {skipped_duplicates} duplicates skipped, {skipped_non_d3} non-D3 matches skipped, {row_errors} errors.", 'success')
         session['csv_feedback'] = detailed_feedback
         return True
 
