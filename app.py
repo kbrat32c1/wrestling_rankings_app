@@ -247,7 +247,7 @@ SCHOOL_ALIASES = {
     "Heidelberg University": ["Heidelberg"],
     "Hiram College": ["Hiram"],
     "Muskingum University": ["Muskingum"],
-    "Ohio Northern University": ["Ohio Northern", "ONU"],
+    "Ohio Northern University": ["Ohio Northern", "ONU", "Ohio Northern Univ."],
     "Otterbein University": ["Otterbein"],
     "Randolph College": ["Randolph"],
     "Roanoke College": ["Roanoke"],
