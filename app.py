@@ -227,7 +227,7 @@ SCHOOL_ALIASES = {
     "Elizabethtown College": ["Elizabethtown", "E-town"],
     "Gettysburg College": ["Gettysburg"],
     "Johns Hopkins University": ["Johns Hopkins", "Hopkins", "JHU"],
-    "King's College": ["King's", "King`s (PA)", "King's (PA)"],
+    "King's College": ["King's", "King`s (PA)", "King's (PA)", "Kings College"],
     "Marymount University": ["Marymount"],
     "McDaniel College": ["McDaniel"],
     "Messiah University": ["Messiah"],
