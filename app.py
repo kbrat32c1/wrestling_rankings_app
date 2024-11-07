@@ -239,7 +239,7 @@ SCHOOL_ALIASES = {
     "University of Scranton": ["Scranton"],
     "Ursinus College": ["Ursinus"],
     "US Merchant Marine Academy": ["Merchant Marine", "USMMA"],
-    "York College of Pennsylvania": ["York College PA", "York PA", "York (PA)"],
+    "York College of Pennsylvania": ["York College PA", "York PA", "York (PA)", "York College"],
     "Averett University": ["Averett"],
     "Baldwin Wallace University": ["Baldwin Wallace", "BW"],
     "Ferrum College": ["Ferrum"],
