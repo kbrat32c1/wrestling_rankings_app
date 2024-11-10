@@ -269,7 +269,7 @@ SCHOOL_ALIASES = {
     "John Carroll University": ["John Carroll", "JCU"],
     "Manchester University": ["Manchester"],
     "Millikin University": ["Millikin"],
-    "Mount St. Joseph University": ["Mount St. Joseph", "MSJ"],
+    "Mount St. Joseph University": ["Mount St. Joseph", "MSJ", "Mount St Joseph"],
     "North Central College": ["North Central", "NCC"],
     "Ohio Wesleyan University": ["Ohio Wesleyan"],
     "Olivet College": ["Olivet"],
