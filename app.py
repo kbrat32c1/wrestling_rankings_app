@@ -969,6 +969,7 @@ def recalculate_wrestler_stats(wrestler_id, season_id):
 def get_team_scores(season_id):
     """
     Calculate team scores for the specified season, based on individual wrestler rankings.
+    Only ranks the top wrestler per team per weight class.
     Includes detailed data for each ranked wrestler to display in collapsible sections.
     """
     teams = {}
@@ -980,8 +981,19 @@ def get_team_scores(season_id):
         # Fetch wrestlers in the given weight class and season, ordered by Elo rating
         wrestlers = Wrestler.query.filter_by(weight_class=weight_class, season_id=season_id).order_by(Wrestler.elo_rating.desc()).all()
 
+        # Dictionary to track top-ranked wrestler per team for this weight class
+        top_wrestlers_per_team = {}
+        for wrestler in wrestlers:
+            team_name = wrestler.school
+            # Only keep the first (top-ranked) wrestler for each team in this weight class
+            if team_name not in top_wrestlers_per_team:
+                top_wrestlers_per_team[team_name] = wrestler
+
+        # Extract the list of top-ranked wrestlers per team
+        top_wrestlers = list(top_wrestlers_per_team.values())
+
         # Loop through the top 8 wrestlers (ranked 1 to 8) to assign points
-        for rank, wrestler in enumerate(wrestlers[:8], start=1):
+        for rank, wrestler in enumerate(top_wrestlers[:8], start=1):
             team_name = wrestler.school
             points = calculate_points(rank)
 
@@ -1011,6 +1023,7 @@ def get_regional_team_scores(season_id, region):
     """
     Calculate team scores for a specific region and season.
     Includes detailed data for each ranked wrestler to display in collapsible sections.
+    Only ranks the top wrestler per team per weight class.
     """
     teams = {}
 
@@ -1029,8 +1042,19 @@ def get_regional_team_scores(season_id, region):
             if D3_WRESTLING_SCHOOLS.get(wrestler.school, {}).get('region') == region
         ]
 
+        # Dictionary to track top-ranked wrestler per team for this weight class
+        top_wrestlers_per_team = {}
+        for wrestler in wrestlers:
+            team_name = wrestler.school
+            # Only keep the first (top-ranked) wrestler for each team in this weight class
+            if team_name not in top_wrestlers_per_team:
+                top_wrestlers_per_team[team_name] = wrestler
+
+        # Extract the list of top-ranked wrestlers per team
+        top_wrestlers = list(top_wrestlers_per_team.values())
+
         # Loop through the top 8 wrestlers (ranked 1 to 8) to assign points
-        for rank, wrestler in enumerate(wrestlers[:8], start=1):
+        for rank, wrestler in enumerate(top_wrestlers[:8], start=1):
             team_name = wrestler.school
             points = calculate_points(rank)
 
