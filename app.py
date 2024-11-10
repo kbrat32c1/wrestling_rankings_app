@@ -234,7 +234,7 @@ SCHOOL_ALIASES = {
     "Misericordia University": ["Misericordia"],
     "Muhlenberg College": ["Muhlenberg"],
     "New York University": ["NYU", "New York U"],
-    "Penn State Altoona": ["PSU Altoona", "Penn State Altoona"],
+    "Penn State Altoona": ["PSU Altoona", "Penn State Altoona", "Penn State - Altoona"],
     "The College of New Jersey": ["TCNJ", "College of New Jersey"],
     "University of Scranton": ["Scranton"],
     "Ursinus College": ["Ursinus"],
@@ -741,18 +741,26 @@ def recalculate_hybrid(wrestler_id, season_id):
 
 
 # Helper function to calculate Dominance Score
+MIN_MATCHES = 3  # Minimum matches required for dominance score calculation
+
+# Helper function to calculate Dominance Score
 def calculate_dominance_score(wrestler_id, season_id):
     wrestler = Wrestler.query.get(wrestler_id)
     
     # Fetch matches for the wrestler in the specified season
     matches = Match.query.filter(
-        (Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id),
+        ((Match.wrestler1_id == wrestler.id) | (Match.wrestler2_id == wrestler.id)),
         Match.season_id == season_id
     ).all()
 
-    total_score = 0
     match_count = len(matches)
 
+    # Ensure wrestler has the minimum number of matches
+    if match_count < MIN_MATCHES:
+        logger.info(f"{wrestler.name} has fewer than {MIN_MATCHES} matches. Dominance score not calculated.")
+        return 0  # Return 0 if wrestler does not meet minimum match requirement
+
+    total_score = 0
     for match in matches:
         if match.winner_id == wrestler.id:
             if match.win_type == 'Fall':
@@ -764,12 +772,13 @@ def calculate_dominance_score(wrestler_id, season_id):
             elif match.win_type == 'Decision':
                 total_score += 3
 
-    if match_count == 0:
-        logger.info(f"{wrestler.name} has no matches. Dominance score set to 0.")
-        return 0  # Avoid division by zero if the wrestler has no matches
-
     # Calculate the average dominance score across all matches
-    return round(total_score / match_count, 2)  # Round to 2 decimal places for readability
+    dominance_score = round(total_score / match_count, 2)  # Round to 2 decimal places for readability
+    return dominance_score
+
+
+
+
 
 def recalculate_dominance(wrestler_id, season_id):
     """
@@ -2064,6 +2073,11 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
         detailed_feedback = []
         match_ids = []  # List to track added match IDs
 
+        # Flatten D3 team and alias lookup for validation
+        D3_TEAM_LOOKUP = {school.lower() for school in D3_WRESTLING_SCHOOLS.keys()}
+        for aliases in SCHOOL_ALIASES.values():
+            D3_TEAM_LOOKUP.update(alias.lower() for alias in aliases)
+
         # Process rows
         for row_num, row in enumerate(csv_reader, start=1):
             try:
@@ -2077,6 +2091,14 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 wrestler2_score = int(row['Wrestler2_Score'].strip())
                 winner_name = row['Winner'].strip()
                 win_type = row['WinType'].strip().lower()  # Convert to lowercase for consistency
+
+                # Validate D3 school status for both wrestlers
+                if school1_name.lower() not in D3_TEAM_LOOKUP or school2_name.lower() not in D3_TEAM_LOOKUP:
+                    detailed_feedback.append(
+                        f"Row {row_num}: Match not uploaded because one or both teams are not Division 3 (School1: {school1_name}, School2: {school2_name})."
+                    )
+                    row_errors += 1
+                    continue
 
                 # Parse the date using the flexible date parsing function
                 try:
@@ -2093,7 +2115,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     detailed_feedback.append(f"Row {row_num}: No matching season found for date {match_date}.")
                     row_errors += 1
                     continue
-                
+
                 season_id = season.id  # Define season_id here
 
                 # Initialize flags for different types of wins
@@ -2131,8 +2153,8 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     'tie breaker': 'tiebreaker_1',
                     'tb-1': 'tiebreaker_1',
                     'tb-2': 'tiebreaker_2',
-                    'tiebreaker - 1': 'tiebreaker_1',  # New addition for 'tiebreaker - 1'
-                    'tiebreaker - 2 (riding time)': 'tiebreaker_2',  # New addition for 'tiebreaker - 2'
+                    'tiebreaker - 1': 'tiebreaker_1',
+                    'tiebreaker - 2 (riding time)': 'tiebreaker_2',
                     'medical forfeit': 'medical_forfeit',
                     'med forfeit': 'medical_forfeit',
                     'disqualification': 'disqualification',
@@ -2696,6 +2718,8 @@ def autocomplete():
     return jsonify(wrestler_names)
 
 
+from sqlalchemy.sql import func  # Add this import
+
 @app.route('/global-leaderboards', methods=['GET'])
 def global_leaderboards():
     # Fetch all seasons for the dropdown
@@ -2728,14 +2752,20 @@ def global_leaderboards():
     tech_fall_leaders = get_stat_leaders('Technical Fall', season_id=current_season.id, weight_class=selected_weight_class, limit=20)
     major_decision_leaders = get_stat_leaders('Major Decision', season_id=current_season.id, weight_class=selected_weight_class, limit=20)
 
-    # Find the top 20 most dominant wrestlers for the selected season and weight class
-    most_dominant_wrestlers = Wrestler.query.filter_by(season_id=current_season.id)
+    # Find the top 20 most dominant wrestlers for the selected season and weight class, with a minimum match filter
+    most_dominant_wrestlers = Wrestler.query.filter(
+        Wrestler.season_id == current_season.id,
+        Wrestler.dominance_score > 0
+    ).join(Match, ((Match.wrestler1_id == Wrestler.id) | (Match.wrestler2_id == Wrestler.id))
+    ).filter(
+        Match.season_id == current_season.id
+    )
 
-    # If a weight class is selected, filter by weight class
+    # Apply weight class filter if selected
     if selected_weight_class:
-        most_dominant_wrestlers = most_dominant_wrestlers.filter_by(weight_class=selected_weight_class)
+        most_dominant_wrestlers = most_dominant_wrestlers.filter(Wrestler.weight_class == selected_weight_class)
 
-    most_dominant_wrestlers = most_dominant_wrestlers.order_by(Wrestler.dominance_score.desc()).limit(20).all()
+    most_dominant_wrestlers = most_dominant_wrestlers.group_by(Wrestler.id).having(func.count(Match.id) >= 5).order_by(Wrestler.dominance_score.desc()).limit(20).all()
 
     # Pass weight classes to the template
     weight_classes = WEIGHT_CLASSES  # Assuming this is defined in your app
@@ -2753,8 +2783,6 @@ def global_leaderboards():
         selected_weight_class=selected_weight_class,
         weight_classes=weight_classes
     )
-
-
 
 
 
@@ -3147,4 +3175,3 @@ if __name__ == '__main__':
 
     # Run the app, with debug mode set based on the FLASK_ENV environment variable
     app.run(debug=os.getenv("FLASK_ENV") == "development")
-
