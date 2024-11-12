@@ -856,16 +856,17 @@ def normalize_school_name(school_name):
     Converts an alternative school name to the official name if an alias exists.
     If no alias is found, it returns the original name.
     """
-    # Clean up any extra spaces
-    school_name = school_name.strip()
+    # Clean up any extra spaces and make comparison case-insensitive
+    school_name = school_name.strip().lower()
 
-    # Check if the name is already the official name
-    if school_name in D3_WRESTLING_SCHOOLS:
-        return school_name
-    
-    # Check if the name is in the aliases
+    # Check if the normalized name matches any official D3 school name (case insensitive)
+    for main_name in D3_WRESTLING_SCHOOLS.keys():
+        if school_name == main_name.lower():
+            return main_name  # Return the official name as stored in the keys
+
+    # Check if the name matches any aliases (case insensitive)
     for main_name, aliases in SCHOOL_ALIASES.items():
-        if school_name in aliases:
+        if school_name in [alias.lower() for alias in aliases]:
             app.logger.info(f"Normalizing '{school_name}' to '{main_name}'")
             return main_name  # Return the official name
 
@@ -2097,19 +2098,19 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
         detailed_feedback = []
         match_ids = []  # List to track added match IDs
 
-        # Flatten D3 team and alias lookup for validation
-        D3_TEAM_LOOKUP = {school.lower() for school in D3_WRESTLING_SCHOOLS.keys()}
+        # Flatten D3 team and alias lookup for validation (case insensitive)
+        D3_TEAM_LOOKUP = {normalize_school_name(school).lower() for school in D3_WRESTLING_SCHOOLS.keys()}
         for aliases in SCHOOL_ALIASES.values():
-            D3_TEAM_LOOKUP.update(alias.lower() for alias in aliases)
+            D3_TEAM_LOOKUP.update(normalize_school_name(alias).lower() for alias in aliases)
 
         # Process rows
         for row_num, row in enumerate(csv_reader, start=1):
             try:
                 # Process each field and strip whitespace
                 wrestler1_name = row['Wrestler1'].strip()
-                school1_name = row['School1'].strip()
+                school1_name = normalize_school_name(row['School1'].strip()).lower()  # Normalize and lowercase school names
                 wrestler2_name = row['Wrestler2'].strip()
-                school2_name = row['School2'].strip()
+                school2_name = normalize_school_name(row['School2'].strip()).lower()  # Normalize and lowercase school names
                 weight_class = int(row['WeightClass'].strip())
                 wrestler1_score = int(row['Wrestler1_Score'].strip())
                 wrestler2_score = int(row['Wrestler2_Score'].strip())
@@ -2117,7 +2118,7 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                 win_type = row['WinType'].strip().lower()  # Convert to lowercase for consistency
 
                 # Validate D3 school status for both wrestlers
-                if school1_name.lower() not in D3_TEAM_LOOKUP or school2_name.lower() not in D3_TEAM_LOOKUP:
+                if school1_name not in D3_TEAM_LOOKUP or school2_name not in D3_TEAM_LOOKUP:
                     detailed_feedback.append(
                         f"Row {row_num}: Match not uploaded because one or both teams are not Division 3 (School1: {school1_name}, School2: {school2_name})."
                     )
@@ -2213,10 +2214,6 @@ def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
                     detailed_feedback.append(f"Row {row_num}: Missing required fields.")
                     row_errors += 1
                     continue
-
-                # Normalize school names for both wrestlers
-                school1_name = normalize_school_name(school1_name)
-                school2_name = normalize_school_name(school2_name)
 
                 # Get or create wrestlers for the season
                 wrestler1 = get_or_create_wrestler(wrestler1_name, school1_name, weight_class, season_id)
