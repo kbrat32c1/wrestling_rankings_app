@@ -308,11 +308,92 @@ SCHOOL_ALIASES = {
     "Pacific University": ["Pacific"],
     "Saint Johns University": ["Saint Johns", "St. Johns", "SJU", "St. Johns (MN)"],
     "University of Wisconsin-Eau Claire": ["Wisconsin-Eau Claire", "Wisconsin Eau Claire", "UW Eau Claire"],
-    "University of Wisconsin-La Crosse": ["Wisconsin La Crosse", "UW La Crosse", "Wisconsin-La Crosse"],
+    "University of Wisconsin-La Crosse": ["Wisconsin La Crosse", "UW La Crosse", "Wisconsin-La Crosse", "UW - La Crosse"],
     "University of Wisconsin-Oshkosh": ["Wisconsin Oshkosh", "UW Oshkosh", "Wisconsin-Oshkosh"],
     "University of Wisconsin-Platteville": ["Wisconsin Platteville", "UW Platteville", "Wisconsin-Platteville"],
     "University of Wisconsin-Stevens Point": ["Wisconsin Stevens Point", "UW Stevens Point", "Wisconsin-Stevens Point"]
 }
+
+# Put this at the top of your app.py or in a separate config file if you prefer
+NAME_ALIASES = {
+    "matt": "matthew",
+    "mattie": "matthew",
+    "matthew": "matthew",
+    "nate": "nathan",
+    "nathan": "nathan",
+    "alex": "alexander",
+    "alexander": "alexander",
+    "chris": "christopher",
+    "christopher": "christopher",
+    "mike": "michael",
+    "michael": "michael",
+    "will": "william",
+    "bill": "william",
+    "billy": "william",
+    "william": "william",
+    "tom": "thomas",
+    "thomas": "thomas",
+    "jim": "james",
+    "jimmy": "james",
+    "james": "james",
+    "jack": "john",
+    "johnny": "john",
+    "john": "john",
+    "rob": "robert",
+    "bobby": "robert",
+    "bob": "robert",
+    "robert": "robert",
+    "rick": "richard",
+    "richie": "richard",
+    "rich": "richard",
+    "dick": "richard",
+    "richard": "richard",
+    "andy": "andrew",
+    "drew": "andrew",
+    "andrew": "andrew",
+    "steve": "steven",
+    "steven": "steven",
+    "stephen": "steven",
+    "dan": "daniel",
+    "danny": "daniel",
+    "daniel": "daniel",
+    "ben": "benjamin",
+    "benji": "benjamin",
+    "benjamin": "benjamin",
+    "josh": "joshua",
+    "joshua": "joshua",
+    "sam": "samuel",
+    "samuel": "samuel",
+    "joe": "joseph",
+    "joey": "joseph",
+    "joseph": "joseph",
+    "nick": "nicholas",
+    "nicky": "nicholas",
+    "nicholas": "nicholas",
+    "tony": "anthony",
+    "anthony": "anthony",
+    "leo": "leonard",
+    "leonard": "leonard",
+    "greg": "gregory",
+    "gregory": "gregory",
+    "tim": "timothy",
+    "timmy": "timothy",
+    "timothy": "timothy",
+    "ken": "kenneth",
+    "kenny": "kenneth",
+    "kenneth": "kenneth",
+    "pete": "peter",
+    "peter": "peter",
+    "frank": "francis",
+    "francis": "francis",
+    "frankie": "francis",
+    "pat": "patrick",
+    "patrick": "patrick",
+    "marty": "martin",
+    "martin": "martin",
+}
+
+
 
 
 # User loader for Flask-Login
@@ -2034,14 +2115,26 @@ def parse_date(date_str):
     raise ValueError(f"Date '{date_str}' is not in a recognized format. Supported formats: {', '.join(date_formats)}")
 
 
+def normalize_name(name):
+    """
+    Normalize and map common name aliases to a standard name.
+    This helps with matching aliases like 'Matt' to 'Matthew'.
+    """
+    name = name.strip().title()  # Normalize capitalization and whitespace
+    name = NAME_ALIASES.get(name.lower(), name)  # Use global alias mapping
+    return name.title()  # Ensure the name is capitalized correctly
+
+
 
 def get_or_create_wrestler(name, school, weight_class, season_id):
     """
     This function normalizes the name and school, checks for an existing wrestler
     in the given season, and creates a new one if none exists.
     """
-    name = name.strip().title()  # Normalize wrestler name (capitalize properly, remove extra spaces)
-    
+    # Normalize the wrestler's name with aliases and capitalization
+    name = normalize_name(name)  # Use the global normalization function
+    name = name.strip().title()  # Further normalize the name if needed
+
     # Normalize the school name using the alias normalization function
     school = normalize_school_name(school)
 
@@ -2074,6 +2167,7 @@ def get_or_create_wrestler(name, school, weight_class, season_id):
         db.session.commit()
     
     return wrestler
+
 
 def validate_and_process_csv(file, user_id=None):  # Optionally pass the user ID
     try:
