@@ -217,7 +217,7 @@ SCHOOL_ALIASES = {
     "Stevens Institute of Technology": ["Stevens Tech", "Stevens"],
     "SUNY - Brockport": ["Brockport", "SUNY Brockport"],
     "SUNY - Cortland": ["Cortland", "SUNY Cortland", "Cortland State"],
-    "SUNY - Oneonta": ["Oneonta", "SUNY Oneonta", "Oneonta State"],
+    "SUNY - Oneonta": ["Oneonta", "SUNY Oneonta", "Oneonta State", "Oneonta State University"],
     "SUNY - Oswego": ["Oswego", "SUNY Oswego", "Oswego State"],
     "University of Pittsburgh at Bradford": ["Pitt Bradford", "University of Pittsburgh Bradford", "Pitt-Bradford", "pitt-bradford university"],
     "Hunter College": ["Hunter"],
