@@ -299,7 +299,7 @@ SCHOOL_ALIASES = {
     "Augsburg University": ["Augsburg"],
     "Augustana College": ["Augustana", "Augustana (IL)"],
     "Carthage College": ["Carthage"],
-    "Concordia College - Moorhead": ["Concordia Moorhead", "Concordia", "Concordia-Moorhead"],
+    "Concordia College - Moorhead": ["Concordia Moorhead", "Concordia", "Concordia-Moorhead", "concordia college - moorhead"],
     "Concordia University Wisconsin": ["Concordia Wisconsin", "CUW", "Concordia (WI)"],
     "Lakeland University": ["Lakeland"],
     "Linfield University": ["Linfield"],
@@ -311,7 +311,7 @@ SCHOOL_ALIASES = {
     "University of Wisconsin-La Crosse": ["Wisconsin La Crosse", "UW La Crosse", "Wisconsin-La Crosse", "UW - La Crosse","uw-lacrosse"],
     "University of Wisconsin-Oshkosh": ["Wisconsin Oshkosh", "UW Oshkosh", "Wisconsin-Oshkosh"],
     "University of Wisconsin-Platteville": ["Wisconsin Platteville", "UW Platteville", "Wisconsin-Platteville"],
-    "University of Wisconsin-Stevens Point": ["Wisconsin Stevens Point", "UW Stevens Point", "Wisconsin-Stevens Point"]
+    "University of Wisconsin-Stevens Point": ["Wisconsin Stevens Point", "UW Stevens Point", "Wisconsin-Stevens Point", "uw-stevens point"]
 }
 
 # Put this at the top of your app.py or in a separate config file if you prefer
