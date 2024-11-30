@@ -275,7 +275,7 @@ SCHOOL_ALIASES = {
     "Olivet College": ["Olivet"],
     "Trine University": ["Trine"],
     "University of Chicago": ["Chicago", "UChicago"],
-    "University of Wisconsin-Whitewater": ["Wisconsin Whitewater", "UW Whitewater", "Wisconsin-Whitewater"],
+    "University of Wisconsin-Whitewater": ["Wisconsin Whitewater", "UW Whitewater", "Wisconsin-Whitewater", "uw-whitewater"],
     "Wabash College": ["Wabash"],
     "Wheaton College": ["Wheaton", "Wheaton (IL)"],
     "Blackburn College": ["Blackburn"],
@@ -308,7 +308,7 @@ SCHOOL_ALIASES = {
     "Pacific University": ["Pacific"],
     "Saint Johns University": ["Saint Johns", "St. Johns", "SJU", "St. Johns (MN)"],
     "University of Wisconsin-Eau Claire": ["Wisconsin-Eau Claire", "Wisconsin Eau Claire", "UW Eau Claire"],
-    "University of Wisconsin-La Crosse": ["Wisconsin La Crosse", "UW La Crosse", "Wisconsin-La Crosse", "UW - La Crosse"],
+    "University of Wisconsin-La Crosse": ["Wisconsin La Crosse", "UW La Crosse", "Wisconsin-La Crosse", "UW - La Crosse","uw-lacrosse"],
     "University of Wisconsin-Oshkosh": ["Wisconsin Oshkosh", "UW Oshkosh", "Wisconsin-Oshkosh"],
     "University of Wisconsin-Platteville": ["Wisconsin Platteville", "UW Platteville", "Wisconsin-Platteville"],
     "University of Wisconsin-Stevens Point": ["Wisconsin Stevens Point", "UW Stevens Point", "Wisconsin-Stevens Point"]
