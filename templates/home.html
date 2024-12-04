@@ -84,6 +84,15 @@
         <form action="{{ url_for('clear_data', season_id=selected_season_id) }}" method="POST" class="d-inline-block">
             <button type="submit" class="btn btn-danger">Clear Data for {{ selected_season.name }}</button>
         </form>
+        <!-- Add this form where you want the button to appear -->
+        <form action="{{ url_for('recalculate_season_elo') }}" method="post" style="text-align: center; margin: 20px 0;">
+            <input type="hidden" name="season_id" value="{{ selected_season_id }}">
+            <button type="submit" class="btn btn-warning">Recalculate Elo for Current Season</button>
+        </form>
+        <form action="{{ url_for('update_season_start_elo') }}" method="post">
+            <input type="hidden" name="season_id" value="{{ selected_season_id }}">
+            <button type="submit" class="btn btn-primary">Update Season Start Elo</button>
+        </form>
         <form action="{{ url_for('update_all', season_id=selected_season_id) }}" method="POST" class="d-inline-block">
             <button type="submit" class="btn btn-success mt-2">Update All Rankings and Stats</button>
         </form>

@@ -15,6 +15,7 @@ from sqlalchemy import event
 import json
 import os
 
+
 # Import the Config class from config.py
 from config import Config
 
@@ -428,6 +429,7 @@ class Wrestler(db.Model):
     tech_falls = db.Column(db.Integer, default=0)  # Field for technical falls
     major_decisions = db.Column(db.Integer, default=0)  # Field for major decisions
     elo_rating = db.Column(db.Float, default=1500)
+    season_start_elo = db.Column(db.Float, nullable=False, default=1500)
     rpi = db.Column(db.Float, default=0)
     dominance_score = db.Column(db.Float, nullable=False, default=0.0)
     season_id = db.Column(db.Integer, db.ForeignKey('season.id'), nullable=False)
@@ -746,6 +748,88 @@ def recalculate_elo(wrestler_id, season_id):
     except Exception as e:
         db.session.rollback()  # Rollback if there was an error
         logger.error(f"Error committing Elo updates for {wrestler.name}: {str(e)}")
+
+
+
+
+
+
+def recalculate_elo_for_season(season_id):
+    """
+    Recalculates Elo ratings for all matches in a season chronologically by match date.
+    Resets all wrestlers' Elo to their season_start_elo at the beginning of recalculation.
+    """
+    logger.info(f"Starting Elo recalculation for season {season_id}...")
+
+    # Reset all wrestlers' Elo to their season_start_elo or 1500
+    wrestlers = Wrestler.query.filter_by(season_id=season_id).all()
+    for wrestler in wrestlers:
+        wrestler.elo_rating = wrestler.season_start_elo or 1500
+        logger.info(f"Reset {wrestler.name} Elo to {wrestler.elo_rating}")
+
+    try:
+        db.session.commit()
+        logger.info(f"Elo ratings reset for all wrestlers in season {season_id}.")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error resetting Elo ratings: {str(e)}")
+        return
+
+    # Fetch all matches in the season, ordered by date
+    matches = Match.query.filter_by(season_id=season_id).order_by(Match.date).all()
+
+    if not matches:
+        logger.warning(f"No matches found for season {season_id}.")
+        return
+
+    # Process matches in chronological order
+    for match in matches:
+        wrestler1 = Wrestler.query.get(match.wrestler1_id)
+        wrestler2 = Wrestler.query.get(match.wrestler2_id)
+
+        if not wrestler1 or not wrestler2:
+            logger.warning(f"Match {match.id} skipped: Wrestler not found.")
+            continue
+
+        # Calculate expected scores
+        expected1 = expected_score(wrestler1.elo_rating, wrestler2.elo_rating)
+        expected2 = 1 - expected1
+
+        # Determine actual scores
+        actual1 = 1 if match.winner_id == wrestler1.id else 0
+        actual2 = 1 - actual1
+
+        # Update Elo ratings
+        new_rating1 = update_elo(wrestler1.elo_rating, expected1, actual1)
+        new_rating2 = update_elo(wrestler2.elo_rating, expected2, actual2)
+
+        # Log updates
+        logger.info(
+            f"Match on {match.date}: {wrestler1.name} ({wrestler1.elo_rating:.2f}) "
+            f"vs {wrestler2.name} ({wrestler2.elo_rating:.2f}) | "
+            f"Result: {'Win' if actual1 else 'Loss'} | "
+            f"New Elo: {new_rating1:.2f}, {new_rating2:.2f}"
+        )
+
+        # Commit new ratings
+        wrestler1.elo_rating = new_rating1
+        wrestler2.elo_rating = new_rating2
+
+    # Commit match updates
+    try:
+        db.session.commit()
+        logger.info(f"Completed Elo recalculation for season {season_id}.")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error committing match updates: {str(e)}")
+
+
+
+
+
+
+
+
 
 
 # RPI calculation functions
@@ -1602,27 +1686,31 @@ def wrestler_detail(wrestler_id):
     dominance_score = total_points / total_matches if total_matches > 0 else 0
 
     # Render the wrestler profile template with all the calculated data, including rankings and individual stats
+    # Inside the wrestler_detail route, update the render_template function:
     return render_template('wrestler_detail.html', 
-                           wrestler=wrestler, 
-                           matches=match_details, 
-                           wins=wins, 
-                           losses=losses, 
-                           dominance_score=dominance_score,
-                           elo_rank=elo_rank,
-                           rpi_rank=rpi_rank,
-                           hybrid_rank=hybrid_rank,
-                           dominance_rank=dominance_rank,
-                           falls=falls,
-                           fall_rank=fall_rank,
-                           tech_falls=tech_falls,
-                           tech_fall_rank=tech_fall_rank,
-                           major_decisions=major_decisions,
-                           major_decision_rank=major_decision_rank,
-                           region=wrestler_region,
-                           conference=wrestler_conference,
-                           selected_season=selected_season,
-                           selected_season_id=selected_season_id)  # Ensure season_id is passed correctly
+                        wrestler=wrestler, 
+                        matches=match_details, 
+                        wins=wins, 
+                        losses=losses, 
+                        dominance_score=dominance_score,
+                        elo_rank=elo_rank,
+                        rpi_rank=rpi_rank,
+                        hybrid_rank=hybrid_rank,
+                        dominance_rank=dominance_rank,
+                        falls=falls,
+                        fall_rank=fall_rank,
+                        tech_falls=tech_falls,
+                        tech_fall_rank=tech_fall_rank,
+                        major_decisions=major_decisions,
+                        major_decision_rank=major_decision_rank,
+                        region=wrestler_region,
+                        conference=wrestler_conference,
+                        selected_season=selected_season,
+                        selected_season_id=selected_season_id,
+                        current_elo=wrestler.elo_rating,
+                        season_start_elo=wrestler.season_start_elo)
 
+                           
 
 
 @app.route('/add_wrestler', methods=['GET', 'POST'])
@@ -2746,6 +2834,37 @@ def recalculate_all_rpi():
     return redirect(url_for('home'))
 
 
+@app.route('/recalculate_season_elo', methods=['POST'])
+@login_required
+@admin_required
+def recalculate_season_elo():
+    if not current_user.is_admin:
+        abort(403)  # Only admins can perform this action
+
+    # Get the season ID from the form
+    season_id = request.form.get('season_id', type=int)
+
+    if not season_id:
+        flash('Season ID is missing!', 'error')
+        logger.error("Elo recalculation failed: No season ID provided.")
+        return redirect(url_for('home'))
+
+    try:
+        # Recalculate Elo for the given season
+        recalculate_elo_for_season(season_id)
+        flash(f"Elo recalculation completed successfully for season {season_id}.", "success")
+        logger.info(f"Elo recalculation completed for season {season_id}.")
+    except Exception as e:
+        db.session.rollback()  # Rollback any partial changes in case of error
+        logger.error(f"Error during Elo recalculation for season {season_id}: {str(e)}")
+        flash(f"Error: {str(e)}", "error")
+
+    # Redirect to the home page with the season ID
+    return redirect(url_for('home', season_id=season_id))
+
+
+
+
 
 
 # Route to handle CSV upload and processing
@@ -3135,6 +3254,7 @@ def push_wrestlers_to_new_season():
             weight_class=request.form.get(f'weight_class_{wrestler.id}', wrestler.weight_class),
             year_in_school=new_year_in_school,  # Use the updated year in school
             elo_rating=wrestler.elo_rating,  # Carry over the Elo rating from the previous season
+            season_starting_elo=wrestler.elo_rating,
             season_id=new_season_id,
             graduating=False  # Reset graduating status for the new season
         )
@@ -3150,7 +3270,107 @@ def push_wrestlers_to_new_season():
     return redirect(url_for('manage_seasons'))
 
 
+
+
+
+
+
 import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+  
+
+@app.route('/update_season_start_elo', methods=['POST'])
+def update_season_start_elo():
+    try:
+        print("Route triggered: update_season_start_elo")
+
+        # Get the selected season ID
+        selected_season_id = request.form.get('season_id', type=int)
+        print(f"Selected Season ID: {selected_season_id}")
+        if not selected_season_id:
+            print("Season ID is missing!")
+            flash("No season selected for updating Season Start Elo.", "error")
+            return redirect(url_for('home'))
+
+        # Set the previous season ID explicitly
+        previous_season_id = 1  # Adjust this if the previous season changes
+        print(f"Previous Season ID: {previous_season_id}")
+
+        # Fetch wrestlers for the previous season
+        wrestlers_previous_season = Wrestler.query.filter_by(season_id=previous_season_id).all()
+        print(f"Previous Season Wrestlers: {len(wrestlers_previous_season)}")
+
+        # Fetch all wrestlers in the current season
+        wrestlers_current_season = Wrestler.query.filter_by(season_id=selected_season_id).all()
+        print(f"Current Season Wrestlers: {len(wrestlers_current_season)}")
+
+        updated_count = 0
+
+        for wrestler_previous in wrestlers_previous_season:
+            print(f"Processing Wrestler: {wrestler_previous.name} (Weight Class: {wrestler_previous.weight_class})")
+
+            # Find the corresponding wrestler in the selected season for the same weight class
+            wrestler_current = Wrestler.query.filter_by(
+                name=wrestler_previous.name,
+                season_id=selected_season_id,
+                weight_class=wrestler_previous.weight_class
+            ).first()
+
+            if wrestler_current:
+                print(f"Found Returning Wrestler: {wrestler_current.name} in Season {selected_season_id} (Weight Class: {wrestler_current.weight_class})")
+                # Update the starting Elo for the same weight class
+                wrestler_current.season_start_elo = wrestler_previous.elo_rating
+                print(f"Updating Elo for Returning Weight Class: {wrestler_previous.elo_rating} -> {wrestler_current.season_start_elo}")
+                updated_count += 1
+
+        # Reset starting Elo for new weight classes in the current season
+        for wrestler_current in wrestlers_current_season:
+            if not any(
+                wrestler_previous.name == wrestler_current.name and
+                wrestler_previous.weight_class == wrestler_current.weight_class
+                for wrestler_previous in wrestlers_previous_season
+            ):
+                wrestler_current.season_start_elo = 1500
+                print(f"Resetting Elo for New Weight Class: {wrestler_current.name} ({wrestler_current.weight_class}) -> 1500")
+
+        db.session.commit()
+        print(f"Total Updated Wrestlers: {updated_count}")
+        flash(f"Season Start Elo updated for {updated_count} wrestlers in Season {selected_season_id}.", "success")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error: {e}")
+        flash(f"An error occurred while updating Season Start Elo: {e}", "error")
+
+    return redirect(url_for('home'))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @app.route('/manage_seasons')
 @login_required

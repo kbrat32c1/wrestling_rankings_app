@@ -21,7 +21,10 @@
                     <p><i class="fas fa-school"></i> <strong>School:</strong> {{ wrestler.school }}</p>
                     <p><i class="fas fa-graduation-cap"></i> <strong>Year in School:</strong> {{ wrestler.year_in_school or 'N/A' }}</p>
                     <p><i class="fas fa-weight"></i> <strong>Weight Class:</strong> {{ wrestler.weight_class }} lbs</p>
+                    <p><i class="fas fa-chart-line"></i> <strong>Current Elo:</strong> {{ "%.2f"|format(wrestler.elo_rating) }}</p>
+                    <p><i class="fas fa-chart-line"></i> <strong>Season Start Elo:</strong> {{ "%.2f"|format(season_start_elo) }}</p>
                 </div>
+
                 <!-- Record and Wins/Losses Badge -->
                 <div class="col-md-6 text-center">
                     <p>
@@ -62,8 +65,8 @@
                 </div>
             </div>
 
-            <!-- New block for Falls, Tech Falls, and Major Decisions -->
-            <div class="row text-center">
+            <!-- Additional Stats -->
+            <div class="row text-center mt-4">
                 <div class="col-md-4">
                     <p><strong>Falls</strong></p>
                     <p class="stat-value">{{ falls }} <br>
@@ -82,43 +85,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Admin-Only Actions: Edit Wrestler -->
-    {% if current_user.is_authenticated and current_user.is_admin %}
-    <div class="actions mb-4 text-center">
-        <a href="{{ url_for('edit_wrestler', wrestler_id=wrestler.id) }}?season_id={{ selected_season_id }}" class="btn btn-primary">Edit Wrestler</a>
-    </div>
-    {% endif %}
-
-    <!-- Manual Stats Update Section -->
-    {% if current_user.is_authenticated and current_user.is_admin %}
-    <div class="card mb-3" style="max-width: 900px; margin: 0 auto;">
-        <div class="card-header bg-dark text-white text-center">
-            <h4>Update Performance Stats</h4>
-        </div>
-        <div class="card-body">
-            <form method="POST" action="{{ url_for('wrestler_detail', wrestler_id=wrestler.id) }}?season_id={{ selected_season_id }}">
-                <div class="row">
-                    <div class="col-md-4">
-                        <label for="falls">Falls</label>
-                        <input type="number" id="falls" name="falls" class="form-control" value="{{ falls }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="tech_falls">Technical Falls</label>
-                        <input type="number" id="tech_falls" name="tech_falls" class="form-control" value="{{ tech_falls }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="major_decisions">Major Decisions</label>
-                        <input type="number" id="major_decisions" name="major_decisions" class="form-control" value="{{ major_decisions }}" required>
-                    </div>
-                </div>
-                <div class="text-center mt-3">
-                    <button type="submit" class="btn btn-success">Update Stats</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    {% endif %}
 
     <!-- Match History Section -->
     <h2>Match History (Season: {{ selected_season.name }})</h2>
@@ -139,16 +105,14 @@
         </thead>
         <tbody>
             {% for match in matches %}
-            <tr class="{% if loop.index is odd %}table-light{% else %}table-secondary{% endif %}">
+            <tr>
                 <td>{{ match.date.strftime('%Y-%m-%d') }}</td>
                 <td>
                     <a href="{{ url_for('wrestler_detail', wrestler_id=match.opponent.id) }}?season_id={{ selected_season_id }}">
-                        {{ match.opponent.name }} ({{ match.opponent.school }}, Record: {{ match.opponent.wins }}-{{ match.opponent.losses }}, Elo: {{ "%.2f"|format(match.opponent.elo_rating) }})
+                        {{ match.opponent.name }} ({{ match.opponent.school }}, Elo: {{ "%.2f"|format(match.opponent.elo_rating) }})
                     </a>
                 </td>
                 <td>{{ match.result }}</td>
-                
-                <!-- Ensure higher score is displayed first -->
                 <td>
                     {% if match.wrestler1_score > match.wrestler2_score %}
                         {{ match.wrestler1_score }} - {{ match.wrestler2_score }}
@@ -156,20 +120,13 @@
                         {{ match.wrestler2_score }} - {{ match.wrestler1_score }}
                     {% endif %}
                 </td>
-
                 <td>{{ match.win_type }}</td>
-                <td>
-                    {% if match.win_type == 'Fall' or match.win_type == 'Technical Fall' %}
-                        {{ match.match_time if match.match_time else '' }}
-                    {% else %}
-                        <!-- Leave blank if no match time is needed -->
-                    {% endif %}
-                </td>
+                <td>{{ match.match_time if match.match_time else 'N/A' }}</td>
                 {% if current_user.is_authenticated and current_user.is_admin %}
                 <td>
-                    <a href="{{ url_for('edit_match', match_id=match.id) }}?season_id={{ selected_season_id }}" class="btn btn-sm btn-primary">Edit</a>
-                    <form action="{{ url_for('delete_match', match_id=match.id) }}?wrestler_id={{ wrestler.id }}&season_id={{ selected_season_id }}" method="post" style="display: inline;">
-                        <input type="submit" value="Delete" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this match?');">
+                    <a href="{{ url_for('edit_match', match_id=match.id) }}" class="btn btn-primary btn-sm" title="Edit Match"><i class="fas fa-edit"></i></a>
+                    <form action="{{ url_for('delete_match', match_id=match.id) }}" method="post" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" title="Delete Match" onclick="return confirm('Are you sure you want to delete this match?');"><i class="fas fa-trash-alt"></i></button>
                     </form>
                 </td>
                 {% endif %}
@@ -184,7 +141,7 @@
     <!-- Admin-Only Add Match Button -->
     {% if current_user.is_authenticated and current_user.is_admin %}
     <div class="actions text-center mt-4">
-        <a href="{{ url_for('add_match') }}?season_id={{ selected_season_id }}" class="btn btn-success">Add New Match</a>
+        <a href="{{ url_for('add_match') }}" class="btn btn-success">Add New Match</a>
     </div>
     {% endif %}
 
@@ -194,39 +151,3 @@
 </div>
 
 {% endblock %}
-
-<!-- Additional CSS for better styling -->
-<style>
-    .badge {
-        font-size: 1.2rem; /* Increase badge font size */
-        padding: 0.75em 1em;
-    }
-
-    /* Increase font size for stat values */
-    .stat-value {
-        font-size: 1.4rem;
-        font-weight: bold;
-        margin-top: -5px;
-    }
-
-    /* Alternating row colors for match history */
-    .table-secondary {
-        background-color: #f8f9fa;
-    }
-
-    /* Add subtle hover effect */
-    .table-hover tbody tr:hover {
-        background-color: #e9ecef;
-    }
-
-    /* Text for Elo, RPI, Hybrid, and Dominance Cards */
-    .stat-card p {
-        font-size: 1.2rem;
-        margin: 0;
-    }
-
-    /* Adjust padding for better readability */
-    .stat-card {
-        padding: 10px;
-    }
-</style>
