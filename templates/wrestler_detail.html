@@ -109,7 +109,7 @@
                 <td>{{ match.date.strftime('%Y-%m-%d') }}</td>
                 <td>
                     <a href="{{ url_for('wrestler_detail', wrestler_id=match.opponent.id) }}?season_id={{ selected_season_id }}">
-                        {{ match.opponent.name }} ({{ match.opponent.school }}, Elo: {{ "%.2f"|format(match.opponent.elo_rating) }})
+                        {{ match.opponent.name }} ({{ match.opponent.school }}, Record: {{ match.opponent.wins }}-{{ match.opponent.losses }}, Elo: {{ "%.2f"|format(match.opponent.elo_rating) }})
                     </a>
                 </td>
                 <td>{{ match.result }}</td>

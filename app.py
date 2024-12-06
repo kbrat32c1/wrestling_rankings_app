@@ -1630,45 +1630,23 @@ def wrestler_detail(wrestler_id):
     tech_falls = wrestler.tech_falls  # Ensure using the updated value
     major_decisions = wrestler.major_decisions  # Ensure using the updated value
 
-    # Log the values for troubleshooting
-    app.logger.info(f"Wrestler {wrestler.name}: Falls = {falls}, Fall Rank = {fall_rank}")
-    app.logger.info(f"Wrestler {wrestler.name}: Tech Falls = {tech_falls}, Tech Fall Rank = {tech_fall_rank}")
-    app.logger.info(f"Wrestler {wrestler.name}: Major Decisions = {major_decisions}, Major Decision Rank = {major_decision_rank}")
-
     # Query for matches where the wrestler is wrestler1 or wrestler2 within the selected season
-    matches_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler_id, season_id=selected_season_id).all()
-    matches_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler_id, season_id=selected_season_id).all()
+    matches_wrestler1 = Match.query.filter_by(wrestler1_id=wrestler_id, season_id=selected_season_id).order_by(Match.id).all()
+    matches_wrestler2 = Match.query.filter_by(wrestler2_id=wrestler_id, season_id=selected_season_id).order_by(Match.id).all()
 
-    # Combine the matches into one list
-    matches = matches_wrestler1 + matches_wrestler2
-
-    # Initialize variables for tracking dominance score
-    total_points = 0
-    total_matches = len(matches)  # Total number of matches
+    # Combine and sort the matches by ID to ensure they appear in the order uploaded
+    matches = sorted(matches_wrestler1 + matches_wrestler2, key=lambda m: m.id)
 
     # Prepare list for match details to be rendered
     match_details = []
-
-    # Loop through each match to calculate dominance score
     for match in matches:
         # Identify the opponent
         if match.wrestler1_id == wrestler_id:
-            opponent = match.wrestler2
+            opponent = Wrestler.query.get(match.wrestler2_id)
             is_winner = match.winner_id == wrestler_id
         else:
-            opponent = match.wrestler1
+            opponent = Wrestler.query.get(match.wrestler1_id)
             is_winner = match.winner_id == wrestler_id
-
-        # Calculate points for the dominance score based on win type (Fall, Technical Fall, Major Decision, Decision)
-        if is_winner:
-            if match.win_type == 'Fall':
-                total_points += 6
-            elif match.win_type == 'Technical Fall':
-                total_points += 5
-            elif match.win_type == 'Major Decision':
-                total_points += 4
-            elif match.win_type == 'Decision':
-                total_points += 3
 
         # Collect match details for display in the template
         match_details.append({
@@ -1683,10 +1661,16 @@ def wrestler_detail(wrestler_id):
         })
 
     # Avoid division by zero when calculating the dominance score
-    dominance_score = total_points / total_matches if total_matches > 0 else 0
+    total_points = sum(
+        6 if match['win_type'] == 'Fall' else
+        5 if match['win_type'] == 'Technical Fall' else
+        4 if match['win_type'] == 'Major Decision' else
+        3 if match['win_type'] == 'Decision' else 0
+        for match in match_details if match['result'] == 'Win'
+    )
+    dominance_score = total_points / len(matches) if matches else 0
 
     # Render the wrestler profile template with all the calculated data, including rankings and individual stats
-    # Inside the wrestler_detail route, update the render_template function:
     return render_template('wrestler_detail.html', 
                         wrestler=wrestler, 
                         matches=match_details, 
@@ -1709,8 +1693,7 @@ def wrestler_detail(wrestler_id):
                         selected_season_id=selected_season_id,
                         current_elo=wrestler.elo_rating,
                         season_start_elo=wrestler.season_start_elo)
-
-                           
+           
 
 
 @app.route('/add_wrestler', methods=['GET', 'POST'])
